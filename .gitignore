@@ -71,3 +71,20 @@ node_modules/
 
 # Windows shortcuts
 *.lnk
+
+# MSIX Packages (build artifacts — use Releases for distribution)
+AppPackages/
+*.msix
+*.msixbundle
+*.appx
+*.appxbundle
+*.appinstaller
+*.cer
+
+# Publish outputs
+Publish/
+publish/
+
+# Test Certificates
+*.pfx
+*.p12
