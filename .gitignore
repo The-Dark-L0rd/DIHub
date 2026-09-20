@@ -1,0 +1,73 @@
+# Build results
+[Bb]in/
+[Oo]bj/
+[Ll]og/
+[Ll]ogs/
+[Pp]ublish/
+[Pp]ackages/
+
+# Visual Studio
+.vs/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+*.userprefs
+
+# Build results
+[Dd]ebug/
+[Rr]elease/
+x64/
+x86/
+ARM64/
+build/
+bld/
+[Oo]ut/
+
+# Rider
+.idea/
+*.sln.iml
+
+# VS Code
+.vscode/
+
+# NuGet
+*.nupkg
+*.snupkg
+packages/
+!packages/build/
+*.nuget.props
+*.nuget.targets
+
+# Test results
+[Tt]est[Rr]esult*/
+*.trx
+*.coverage
+*.coveragexml
+
+# OS generated
+.DS_Store
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+
+# Local secrets
+appsettings.*.json
+secrets.json
+*.pfx
+*.p12
+
+# Generated icons (temporary)
+# (uncomment if you don't want to commit generated icons)
+# DIHub.APP/Assets/*.png
+
+# Node (for future web tooling)
+node_modules/
+
+# Logs
+*.log
+*.log.*
+
+# Windows shortcuts
+*.lnk

@@ -1,0 +1,25 @@
+﻿<Project>
+
+  <!--
+    Global project metadata. No PackageVersion items here —
+    all package versions live in Directory.Packages.props.
+  -->
+  <PropertyGroup>
+    <Version>3.12.0</Version>
+    <AssemblyVersion>3.12.0.0</AssemblyVersion>
+    <FileVersion>3.12.0.0</FileVersion>
+
+    <Company>DARK L0RD</Company>
+    <Product>DI Hub</Product>
+    <Authors>DARK L0RD</Authors>
+    <Copyright>© 2026 DARK L0RD. All rights reserved.</Copyright>
+    <RepositoryUrl>https://github.com/The-Dark-L0rd</RepositoryUrl>
+
+    <LangVersion>latest</LangVersion>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <TreatWarningsAsErrors>false</TreatWarningsAsErrors>
+    <NoWarn>$(NoWarn);CA1416;CS8981;NU1506</NoWarn>
+  </PropertyGroup>
+
+</Project>

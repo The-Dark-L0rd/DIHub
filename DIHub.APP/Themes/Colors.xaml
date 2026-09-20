@@ -1,0 +1,39 @@
+<ResourceDictionary
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <!-- ══════════════════════════════════════════ -->
+    <!--  Theme-aware colors                       -->
+    <!-- ══════════════════════════════════════════ -->
+    <ResourceDictionary.ThemeDictionaries>
+
+        <!-- ══ DARK ══ -->
+        <ResourceDictionary x:Key="Dark">
+            <SolidColorBrush x:Key="AppBackgroundBrush"      Color="#0B0D10" />
+            <SolidColorBrush x:Key="AppSurfaceBrush"         Color="#111419" />
+            <SolidColorBrush x:Key="AppSecondaryBrush"       Color="#171A20" />
+            <SolidColorBrush x:Key="AppBorderBrush"          Color="#252A33" />
+            <SolidColorBrush x:Key="AppTextPrimaryBrush"     Color="#F2F4F7" />
+            <SolidColorBrush x:Key="AppTextSecondaryBrush"   Color="#9CA3AF" />
+            <SolidColorBrush x:Key="AppDisabledBrush"        Color="#5B616B" />
+        </ResourceDictionary>
+
+        <!-- ══ LIGHT ══ -->
+        <ResourceDictionary x:Key="Light">
+            <SolidColorBrush x:Key="AppBackgroundBrush"      Color="#F5F5F7" />
+            <SolidColorBrush x:Key="AppSurfaceBrush"         Color="#FFFFFF" />
+            <SolidColorBrush x:Key="AppSecondaryBrush"       Color="#EEF0F3" />
+            <SolidColorBrush x:Key="AppBorderBrush"          Color="#DDE1E6" />
+            <SolidColorBrush x:Key="AppTextPrimaryBrush"     Color="#0B0D10" />
+            <SolidColorBrush x:Key="AppTextSecondaryBrush"   Color="#606770" />
+            <SolidColorBrush x:Key="AppDisabledBrush"        Color="#B0B4BA" />
+        </ResourceDictionary>
+
+    </ResourceDictionary.ThemeDictionaries>
+
+    <!-- ══════════════════════════════════════════ -->
+    <!--  Accent — top level so it can be mutated  -->
+    <!--  at runtime via brush.Color               -->
+    <!-- ══════════════════════════════════════════ -->
+    <SolidColorBrush x:Key="AppAccentBrush" Color="#8B5CF6" />
+</ResourceDictionary>

@@ -1,0 +1,76 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net10.0-windows10.0.19041.0</TargetFramework>
+    <TargetPlatformMinVersion>10.0.17763.0</TargetPlatformMinVersion>
+    <RootNamespace>DIHub.APP</RootNamespace>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <Platforms>x86;x64;ARM64</Platforms>
+    <RuntimeIdentifiers>win-x86;win-x64;win-arm64</RuntimeIdentifiers>
+    <PublishProfile>win-$(Platform).pubxml</PublishProfile>
+    <UseWinUI>true</UseWinUI>
+    <EnableMsixTooling>true</EnableMsixTooling>
+    <Nullable>enable</Nullable>
+    <NoWarn>$(NoWarn);CA1416;CS8981;NU1506;MVVMTK0045;WMC1509</NoWarn>
+  </PropertyGroup>
+
+  <PropertyGroup>
+    <AssemblyName>DIHub.APP</AssemblyName>
+    <ApplicationTitle>DI Hub</ApplicationTitle>
+    <ApplicationId>DIHub.App</ApplicationId>
+    <Company>DARK L0RD</Company>
+    <Product>DI Hub</Product>
+    <Description>Unified AI Workspace for Windows — ChatGPT, Claude, Gemini, Perplexity, and more in one place.</Description>
+    <Copyright>© 2026 DARK L0RD. All rights reserved.</Copyright>
+    <GenerateAppInstallerFile>True</GenerateAppInstallerFile>
+    <AppxPackageSigningEnabled>True</AppxPackageSigningEnabled>
+    <PackageCertificateThumbprint>8A164CA450CD0DB7FC9542E278A3E3175BB035B6</PackageCertificateThumbprint>
+    <AppxPackageSigningTimestampDigestAlgorithm>SHA256</AppxPackageSigningTimestampDigestAlgorithm>
+    <AppxAutoIncrementPackageRevision>True</AppxAutoIncrementPackageRevision>
+    <GenerateTestArtifacts>False</GenerateTestArtifacts>
+    <AppxBundle>Never</AppxBundle>
+    <AppInstallerUri>C:\Users\M.D.S\Desktop\DIHub\Publish\MSIX</AppInstallerUri>
+    <HoursBetweenUpdateChecks>0</HoursBetweenUpdateChecks>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(Configuration)' == 'Release'">
+    <Optimize>true</Optimize>
+    <DebugType>embedded</DebugType>
+    <DebugSymbols>true</DebugSymbols>
+    <DefineConstants>$(DefineConstants);RELEASE</DefineConstants>
+    <EnableTrimAnalyzer>false</EnableTrimAnalyzer>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(Configuration)' == 'Debug'">
+    <DefineConstants>$(DefineConstants);DEBUG</DefineConstants>
+  </PropertyGroup>
+
+  <!-- ══ Application Manifest ══ -->
+  <ItemGroup>
+    <Manifest Include="$(ApplicationManifest)" />
+  </ItemGroup>
+
+  <!-- ══ NuGet Packages (versions from Directory.Packages.props) ══ -->
+  <ItemGroup>
+    <PackageReference Include="CommunityToolkit.Mvvm" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection" />
+    <PackageReference Include="Microsoft.Extensions.Hosting" />
+    <PackageReference Include="Microsoft.Extensions.Logging" />
+    <PackageReference Include="Microsoft.Web.WebView2" />
+    <PackageReference Include="Microsoft.WindowsAppSDK" />
+    <PackageReference Include="Microsoft.Windows.SDK.BuildTools" />
+  </ItemGroup>
+
+  <!-- ══ Project References ══ -->
+  <ItemGroup>
+    <ProjectReference Include="..\DIHub.Core\DIHub.Core.csproj" />
+    <ProjectReference Include="..\DIHub.Infrastructure\DIHub.Infrastructure.csproj" />
+  </ItemGroup>
+
+  <!-- ══ Assets for MSIX packaging ══ -->
+  <ItemGroup>
+    <Content Include="Assets\**\*.png" />
+  </ItemGroup>
+
+</Project>

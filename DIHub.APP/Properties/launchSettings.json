@@ -1,0 +1,10 @@
+{
+  "profiles": {
+    "DIHub.APP (Package)": {
+      "commandName": "MsixPackage"
+    },
+    "DIHub.APP (Unpackaged)": {
+      "commandName": "Project"
+    }
+  }
+}
