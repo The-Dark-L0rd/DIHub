@@ -161,10 +161,6 @@
                     <Grid Grid.Row="2">
                         <!-- ═══════════════════════════════════════════════════════ -->
                         <!--  Service List — Premium Native Drag & Drop             -->
-                        <!--  · The whole header (grip + icon + name) is draggable. -->
-                        <!--  · Menu button sits on top of the header grid and      -->
-                        <!--    captures pointer events, so no drag from there.     -->
-                        <!--  · DropIndicator (accent line) shows insertion target. -->
                         <!-- ═══════════════════════════════════════════════════════ -->
                         <ListView x:Name="ServicesList"
                                   ItemsSource="{x:Bind ViewModel.Services, Mode=OneWay}"
@@ -200,12 +196,7 @@
                                               Margin="0,1">
                                         <Expander.Header>
                                             <Grid Padding="0,2,4,2">
-                                                <!-- ═══════════════════════════════════════════ -->
-                                                <!--  Draggable header area: grip + icon + name  -->
-                                                <!--  Background=Transparent is REQUIRED so the  -->
-                                                <!--  hit-test zone covers the whole row and     -->
-                                                <!--  the drag visual is not visually intrusive.-->
-                                                <!-- ═══════════════════════════════════════════ -->
+                                                <!-- Draggable header (grip + icon + name) -->
                                                 <Grid Background="Transparent"
                                                       CanDrag="True"
                                                       DragStarting="OnGripDragStarting">
@@ -216,7 +207,6 @@
                                                         <ColumnDefinition Width="Auto" />
                                                     </Grid.ColumnDefinitions>
 
-                                                    <!-- Grip — pure visual indicator -->
                                                     <FontIcon Grid.Column="0"
                                                               Glyph="&#xE76F;"
                                                               FontSize="12"
@@ -226,7 +216,6 @@
                                                               Foreground="{ThemeResource AppTextSecondaryBrush}"
                                                               ToolTipService.ToolTip="Drag to reorder" />
 
-                                                    <!-- Service icon -->
                                                     <FontIcon Grid.Column="1"
                                                               Glyph="{x:Bind Icon}"
                                                               FontSize="14"
@@ -234,21 +223,15 @@
                                                               Margin="0,0,10,0"
                                                               Foreground="{x:Bind Accent, Converter={StaticResource AccentColorToBrushConverter}}" />
 
-                                                    <!-- Service name -->
                                                     <TextBlock Grid.Column="2"
                                                                Text="{x:Bind Name}"
                                                                VerticalAlignment="Center"
                                                                TextTrimming="CharacterEllipsis"
                                                                FontSize="13" />
 
-                                                    <!-- Reserved gap for the menu button (so
-                                                         the header layout stays aligned). -->
                                                     <Border Grid.Column="3" Width="28" />
                                                 </Grid>
 
-                                                <!-- Menu button — sits on top of the draggable
-                                                     area. Since it captures pointer events itself,
-                                                     clicking it will NOT start a drag. -->
                                                 <Button HorizontalAlignment="Right"
                                                         VerticalAlignment="Center"
                                                         Width="28" Height="28"
@@ -386,11 +369,6 @@
                             </ListView.ItemTemplate>
                         </ListView>
 
-                        <!-- ═══════════════════════════════════════════════════════ -->
-                        <!--  Drop Indicator — thin accent line that shows exactly  -->
-                        <!--  where the dragged item will be inserted. Positioned  -->
-                        <!--  via TranslateTransform.Y during DragOver.            -->
-                        <!-- ═══════════════════════════════════════════════════════ -->
                         <Border x:Name="DropIndicator"
                                 Height="2"
                                 Margin="14,0,14,0"
@@ -460,7 +438,9 @@
                     <RowDefinition Height="*" />
                 </Grid.RowDefinitions>
 
-                <!-- ══ Tab Bar ══ -->
+                <!-- ══════════════════════════════════════════════════════ -->
+                <!--  Tab Bar — Tabs + a "+ New Tab" button at the end    -->
+                <!-- ══════════════════════════════════════════════════════ -->
                 <Border Grid.Row="0"
                         Background="{ThemeResource AppSurfaceBrush}"
                         BorderBrush="{ThemeResource AppBorderBrush}"
@@ -469,59 +449,72 @@
                                   HorizontalScrollMode="Enabled"
                                   VerticalScrollMode="Disabled"
                                   VerticalScrollBarVisibility="Disabled">
-                        <ItemsControl x:Name="TabsList"
-                                      ItemsSource="{x:Bind ViewModel.Tabs, Mode=OneWay}"
-                                      Padding="6,4,6,0">
-                            <ItemsControl.ItemsPanel>
-                                <ItemsPanelTemplate>
-                                    <StackPanel Orientation="Horizontal" Spacing="2" />
-                                </ItemsPanelTemplate>
-                            </ItemsControl.ItemsPanel>
-                            <ItemsControl.ItemTemplate>
-                                <DataTemplate x:DataType="models:TabItem">
-                                    <Grid Height="30" MinWidth="150" MaxWidth="240">
-                                        <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="*" />
-                                            <ColumnDefinition Width="Auto" />
-                                        </Grid.ColumnDefinitions>
+                        <StackPanel Orientation="Horizontal" Spacing="4" Padding="6,4,6,4">
+                            <ItemsControl x:Name="TabsList"
+                                          ItemsSource="{x:Bind ViewModel.Tabs, Mode=OneWay}">
+                                <ItemsControl.ItemsPanel>
+                                    <ItemsPanelTemplate>
+                                        <StackPanel Orientation="Horizontal" Spacing="2" />
+                                    </ItemsPanelTemplate>
+                                </ItemsControl.ItemsPanel>
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate x:DataType="models:TabItem">
+                                        <Grid Height="30" MinWidth="150" MaxWidth="240">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="Auto" />
+                                            </Grid.ColumnDefinitions>
 
-                                        <Button Grid.Column="0"
-                                                Click="OnTabActivated"
-                                                Tag="{Binding}"
-                                                Padding="10,0"
-                                                Background="Transparent"
-                                                BorderThickness="0"
-                                                CornerRadius="6,6,0,0"
-                                                HorizontalAlignment="Stretch"
-                                                HorizontalContentAlignment="Left">
-                                            <StackPanel Orientation="Horizontal" Spacing="6">
-                                                <FontIcon Glyph="{x:Bind Icon, Mode=OneWay}" FontSize="12" />
-                                                <TextBlock Text="{x:Bind Title, Mode=OneWay}"
-                                                           FontSize="12"
-                                                           TextTrimming="CharacterEllipsis"
-                                                           VerticalAlignment="Center" />
-                                                <TextBlock Text="{x:Bind AccountName, Mode=OneWay}"
-                                                           FontSize="11"
-                                                           Opacity="0.6"
-                                                           VerticalAlignment="Center"
-                                                           TextTrimming="CharacterEllipsis" />
-                                            </StackPanel>
-                                        </Button>
+                                            <Button Grid.Column="0"
+                                                    Click="OnTabActivated"
+                                                    Tag="{Binding}"
+                                                    Padding="10,0"
+                                                    Background="Transparent"
+                                                    BorderThickness="0"
+                                                    CornerRadius="6,6,0,0"
+                                                    HorizontalAlignment="Stretch"
+                                                    HorizontalContentAlignment="Left">
+                                                <StackPanel Orientation="Horizontal" Spacing="6">
+                                                    <FontIcon Glyph="{x:Bind Icon, Mode=OneWay}" FontSize="12" />
+                                                    <TextBlock Text="{x:Bind Title, Mode=OneWay}"
+                                                               FontSize="12"
+                                                               TextTrimming="CharacterEllipsis"
+                                                               VerticalAlignment="Center" />
+                                                    <TextBlock Text="{x:Bind AccountName, Mode=OneWay}"
+                                                               FontSize="11"
+                                                               Opacity="0.6"
+                                                               VerticalAlignment="Center"
+                                                               TextTrimming="CharacterEllipsis" />
+                                                </StackPanel>
+                                            </Button>
 
-                                        <Button Grid.Column="1"
-                                                Click="OnTabCloseClicked"
-                                                Tag="{Binding}"
-                                                Width="22" Height="22"
-                                                Padding="0"
-                                                Background="Transparent"
-                                                BorderThickness="0"
-                                                Margin="0,0,4,0">
-                                            <FontIcon Glyph="&#xE711;" FontSize="10" />
-                                        </Button>
-                                    </Grid>
-                                </DataTemplate>
-                            </ItemsControl.ItemTemplate>
-                        </ItemsControl>
+                                            <Button Grid.Column="1"
+                                                    Click="OnTabCloseClicked"
+                                                    Tag="{Binding}"
+                                                    Width="22" Height="22"
+                                                    Padding="0"
+                                                    Background="Transparent"
+                                                    BorderThickness="0"
+                                                    Margin="0,0,4,0">
+                                                <FontIcon Glyph="&#xE711;" FontSize="10" />
+                                            </Button>
+                                        </Grid>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+
+                            <!-- ══ New Blank Tab button ══ -->
+                            <Button x:Name="NewBlankTabButton"
+                                    Width="28" Height="28"
+                                    Padding="0"
+                                    Background="Transparent"
+                                    BorderThickness="0"
+                                    VerticalAlignment="Center"
+                                    Click="OnNewBlankTabClicked"
+                                    ToolTipService.ToolTip="New blank tab (Ctrl+T)">
+                                <FontIcon Glyph="&#xE710;" FontSize="11" />
+                            </Button>
+                        </StackPanel>
                     </ScrollViewer>
                 </Border>
 

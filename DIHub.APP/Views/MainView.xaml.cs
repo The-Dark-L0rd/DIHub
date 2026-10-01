@@ -13,7 +13,6 @@ using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Media;
 using Microsoft.UI.Xaml.Media.Animation;
-using Windows.ApplicationModel.DataTransfer;
 using Windows.Foundation;
 using Windows.System;
 
@@ -74,6 +73,8 @@ namespace DIHub.APP.Views
             _workspaceManager.WorkspacesChanged += (s, e) => DispatcherQueue.TryEnqueue(BuildWorkspaceMenu);
             _workspaceManager.ActiveWorkspaceChanged += OnActiveWorkspaceChanged;
 
+            AddressBar.GotFocus += OnAddressBarGotFocus;
+
             SidebarPanel.Width = ViewModel.IsSidebarExpanded ? SidebarExpandedWidth : SidebarCollapsedWidth;
             UpdateToolbarForActiveTab();
 
@@ -106,14 +107,6 @@ namespace DIHub.APP.Views
         // ─────────────────────────────────────────────
         //  Service Reorder — Premium Drag & Drop
         //  ─────────────────────────────────────────────
-        //  The header grid (grip + icon + name) has CanDrag="True",
-        //  so dragging anywhere on that surface lifts a preview of the
-        //  entire header — not just the tiny grip.
-        //  The menu button sits above the header grid and captures its
-        //  own pointer events, so it is not part of the drag surface.
-        //  During DragOver we position the DropIndicator (accent line)
-        //  so the user can see exactly where the item will land.
-        //  ─────────────────────────────────────────────
 
         private void OnGripDragStarting(object sender, DragStartingEventArgs e)
         {
@@ -121,14 +114,14 @@ namespace DIHub.APP.Views
             if (header.DataContext is not AIService service) return;
 
             _draggingService = service;
-            e.Data.RequestedOperation = DataPackageOperation.Move;
+            e.Data.RequestedOperation = Windows.ApplicationModel.DataTransfer.DataPackageOperation.Move;
         }
 
         private void OnServicesDragOver(object sender, DragEventArgs e)
         {
             if (_draggingService is null) return;
 
-            e.AcceptedOperation = DataPackageOperation.Move;
+            e.AcceptedOperation = Windows.ApplicationModel.DataTransfer.DataPackageOperation.Move;
 
             try
             {
@@ -140,7 +133,6 @@ namespace DIHub.APP.Views
             }
             catch { /* best-effort */ }
 
-            // Position the accent-line indicator at the computed insertion point.
             var point = e.GetPosition(ServicesList);
             var (visualIndex, insertAfter, y) = FindDropPosition(point);
 
@@ -175,8 +167,6 @@ namespace DIHub.APP.Views
             var (visualIndex, insertAfter, _) = FindDropPosition(point);
             if (visualIndex < 0) return;
 
-            // Convert "between items" position to a final index in the list
-            // that results AFTER the dragged item is removed.
             int insertionIndex = insertAfter ? visualIndex + 1 : visualIndex;
 
             int newIndex = insertionIndex;
@@ -187,35 +177,22 @@ namespace DIHub.APP.Views
             if (newIndex >= list.Count) newIndex = list.Count - 1;
             if (newIndex == oldIndex) return;
 
-            // Favorites invariant — validate the resulting order BEFORE we
-            // commit, so we don't flash an invalid state on screen.
             var hypothetical = new List<AIService>(list);
             hypothetical.RemoveAt(oldIndex);
             hypothetical.Insert(newIndex, dragged);
             if (ViolatesFavoritesConstraint(hypothetical)) return;
 
-            // Commit. ObservableCollection.Move triggers the built-in
-            // ReorderThemeTransition on the ListView, giving a smooth
-            // native settle without any flicker.
             try
             {
                 list.Move(oldIndex, newIndex);
             }
             catch { }
-
-            // CollectionChanged handler persists the new order.
         }
 
-        /// <summary>
-        /// Finds which item the pointer is currently over, whether it is in
-        /// the upper (before) or lower (after) half, and the Y coordinate
-        /// (in ServicesList space) where the drop indicator line should sit.
-        /// </summary>
         private (int index, bool insertAfter, double y) FindDropPosition(Point point)
         {
             var list = ViewModel.Services;
 
-            // Edge case: pointer is above the first item.
             if (list.Count > 0 &&
                 ServicesList.ContainerFromIndex(0) is FrameworkElement first)
             {
@@ -226,7 +203,6 @@ namespace DIHub.APP.Views
                     return (0, false, firstTop);
             }
 
-            // Find the item under the pointer.
             for (int i = 0; i < list.Count; i++)
             {
                 if (ServicesList.ContainerFromIndex(i) is not FrameworkElement container)
@@ -247,7 +223,6 @@ namespace DIHub.APP.Views
                 }
             }
 
-            // Edge case: pointer is below the last item.
             var lastIndex = list.Count - 1;
             if (lastIndex >= 0 &&
                 ServicesList.ContainerFromIndex(lastIndex) is FrameworkElement lastContainer)
@@ -266,7 +241,6 @@ namespace DIHub.APP.Views
 
         private void ShowDropIndicator(double y)
         {
-            // Center the 2px line on the insertion boundary.
             DropIndicatorTransform.Y = y - 1;
             DropIndicator.Visibility = Visibility.Visible;
         }
@@ -307,9 +281,6 @@ namespace DIHub.APP.Views
             catch { }
         }
 
-        /// <summary>
-        /// Invariant: Favorites occupy the top of the list; Non-Favorites occupy the bottom.
-        /// </summary>
         private static bool ViolatesFavoritesConstraint(IList<AIService> list)
         {
             var seenNonFavorite = false;
@@ -817,6 +788,50 @@ namespace DIHub.APP.Views
             _accountManager.MarkUsed(account.Id);
         }
 
+        /// <summary>
+        /// Opens an arbitrary URL in a new tab (no AI service / account binding).
+        /// Used by the address bar when no tab is active.
+        /// </summary>
+        private void OpenUrlInNewTab(string url)
+        {
+            if (string.IsNullOrWhiteSpace(url)) return;
+
+            var tab = new TabItem
+            {
+                Title = ShortName(url),
+                Url = url,
+                Icon = "\uE774",
+                IsActive = true
+            };
+
+            if (ViewModel.ActiveTab is not null)
+                ViewModel.ActiveTab.IsActive = false;
+
+            ViewModel.Tabs.Add(tab);
+            ViewModel.ActiveTab = tab;
+        }
+
+        /// <summary>
+        /// Opens a brand-new blank tab. The WebView2 stays on about:blank
+        /// until the user types something in the address bar.
+        /// </summary>
+        private void OpenBlankTab()
+        {
+            var tab = new TabItem
+            {
+                Title = "New Tab",
+                Url = string.Empty,
+                Icon = "\uE774",
+                IsActive = true
+            };
+
+            if (ViewModel.ActiveTab is not null)
+                ViewModel.ActiveTab.IsActive = false;
+
+            ViewModel.Tabs.Add(tab);
+            ViewModel.ActiveTab = tab;
+        }
+
         // ─────────────────────────────────────────────
         //  Tab lifecycle
         // ─────────────────────────────────────────────
@@ -860,6 +875,9 @@ namespace DIHub.APP.Views
 
                     ContentHost.Children.Add(host);
                     _webViewHosts[tab.Id] = host;
+
+                    // Blank tabs have no URL → WebView2Host.Navigate() will
+                    // short-circuit and leave the WebView on about:blank.
                     host.Navigate(tab.Url);
                 }
             }
@@ -893,10 +911,9 @@ namespace DIHub.APP.Views
 
         private void OnNewTabInvoked(KeyboardAccelerator sender, KeyboardAcceleratorInvokedEventArgs args)
         {
+            // Ctrl+T now opens a blank tab, like every modern browser.
             args.Handled = true;
-            var first = _serviceManager.Services.SelectMany(s => s.Accounts).FirstOrDefault(a => a.Enabled);
-            if (first is not null) OpenAccount(first);
-            else _notifications.Show("No Account", "Add an account first.", NotificationSeverity.Warning);
+            OpenBlankTab();
         }
 
         private void OnCloseTabInvoked(KeyboardAccelerator sender, KeyboardAcceleratorInvokedEventArgs args)
@@ -1127,6 +1144,17 @@ namespace DIHub.APP.Views
                     });
                 }
             }
+
+            cmds.Add(new CommandItem
+            {
+                Title = "New Blank Tab",
+                Subtitle = "Open a fresh tab",
+                Icon = "\uE710",
+                CategoryLabel = "Tabs",
+                Category = CommandCategory.Navigation,
+                Keywords = "new tab blank",
+                Execute = () => OpenBlankTab()
+            });
 
             cmds.Add(new CommandItem
             {
@@ -1377,6 +1405,11 @@ namespace DIHub.APP.Views
         //  Tab bar
         // ─────────────────────────────────────────────
 
+        private void OnNewBlankTabClicked(object sender, RoutedEventArgs e)
+        {
+            OpenBlankTab();
+        }
+
         private void OnTabActivated(object sender, RoutedEventArgs e)
         {
             if (sender is Button button && button.Tag is TabItem tab)
@@ -1416,19 +1449,46 @@ namespace DIHub.APP.Views
             if (!string.IsNullOrEmpty(url)) _browserService.OpenInDefaultBrowser(url);
         }
 
+        private void OnAddressBarGotFocus(object sender, RoutedEventArgs e)
+        {
+            // Like Chrome / Edge — clicking the address bar selects the whole URL.
+            AddressBar.SelectAll();
+        }
+
         private void OnAddressBarKeyDown(object sender, KeyRoutedEventArgs e)
         {
+            // Escape: restore the active tab's URL (like a browser).
+            if (e.Key == VirtualKey.Escape)
+            {
+                e.Handled = true;
+                var hostForEscape = GetActiveHost();
+                if (hostForEscape is not null)
+                {
+                    AddressBar.Text = GetDisplayUrl(hostForEscape.CurrentUrl);
+                    AddressBar.SelectAll();
+                }
+                return;
+            }
+
             if (e.Key != VirtualKey.Enter) return;
             e.Handled = true;
-
-            var host = GetActiveHost();
-            if (host is null) return;
 
             var input = AddressBar.Text;
             if (string.IsNullOrWhiteSpace(input)) return;
 
+            // Normalize: URL → URL, anything else → search engine query.
             var target = _browserService.NormalizeUrlOrSearch(input);
-            host.Navigate(target);
+
+            var activeHost = GetActiveHost();
+            if (activeHost is null)
+            {
+                // No tab is active → behave like a browser:
+                // open the target in a brand-new tab.
+                OpenUrlInNewTab(target);
+                return;
+            }
+
+            activeHost.Navigate(target);
         }
 
         // ─────────────────────────────────────────────
@@ -1480,12 +1540,18 @@ namespace DIHub.APP.Views
             var host = GetActiveHost();
             if (host is null)
             {
+                // No active tab — disable navigation buttons, but keep the
+                // address bar usable so the user can search / open a URL,
+                // just like a normal browser.
                 BackButton.IsEnabled = false;
                 ForwardButton.IsEnabled = false;
                 ReloadButton.IsEnabled = false;
                 OpenExternalButton.IsEnabled = false;
-                AddressBar.Text = string.Empty;
-                AddressBar.IsEnabled = false;
+
+                if (AddressBar.FocusState == FocusState.Unfocused)
+                    AddressBar.Text = string.Empty;
+
+                AddressBar.IsEnabled = true;
                 return;
             }
 
@@ -1496,7 +1562,7 @@ namespace DIHub.APP.Views
             AddressBar.IsEnabled = true;
 
             if (AddressBar.FocusState == FocusState.Unfocused)
-                AddressBar.Text = host.CurrentUrl ?? string.Empty;
+                AddressBar.Text = GetDisplayUrl(host.CurrentUrl);
         }
 
         private void ApplyNavigationState(NavigationStateChangedEventArgs args)
@@ -1506,7 +1572,18 @@ namespace DIHub.APP.Views
             ReloadIcon.Glyph = args.IsLoading ? "\uE711" : "\uE72C";
 
             if (AddressBar.FocusState == FocusState.Unfocused)
-                AddressBar.Text = args.Url;
+                AddressBar.Text = GetDisplayUrl(args.Url);
+        }
+
+        /// <summary>
+        /// Hides about:blank / null so the address bar looks empty on a
+        /// freshly created blank tab (matching browser behaviour).
+        /// </summary>
+        private static string GetDisplayUrl(string? url)
+        {
+            if (string.IsNullOrEmpty(url)) return string.Empty;
+            if (url.Equals("about:blank", StringComparison.OrdinalIgnoreCase)) return string.Empty;
+            return url;
         }
     }
 }
