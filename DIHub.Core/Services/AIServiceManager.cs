@@ -12,10 +12,6 @@ namespace DIHub.Core.Services
 {
     public sealed class AIServiceManager : IAIServiceManager
     {
-        /// <summary>
-        /// Must stay in sync with ConfigurationMigrator.CurrentVersion.
-        /// Kept as a local constant because DIHub.Core cannot reference DIHub.Infrastructure.
-        /// </summary>
         private const int CurrentConfigVersion = 7;
 
         private readonly IConfigurationStorage _storage;
@@ -147,17 +143,41 @@ namespace DIHub.Core.Services
             _ = SaveAsync();
         }
 
+        // ═══════════════════════════════════════════════════════
+        //  Reorder — smooth path (no Sort, no event, no flicker)
+        // ═══════════════════════════════════════════════════════
         public void ReorderServices(IEnumerable<string> orderedIds)
         {
-            var order = 0;
-            foreach (var id in orderedIds)
+            var orderedList = orderedIds.ToList();
+            var reordered = new List<AIService>(orderedList.Count);
+
+            // Build the new list in the exact sequence provided by the UI.
+            foreach (var id in orderedList)
             {
                 var svc = _services.FirstOrDefault(s => s.Id == id);
-                if (svc is not null) svc.Order = order++;
+                if (svc is not null)
+                    reordered.Add(svc);
             }
 
-            Sort();
-            ServicesChanged?.Invoke(this, EventArgs.Empty);
+            // Append any leftover services (defensive)
+            foreach (var svc in _services)
+            {
+                if (!reordered.Contains(svc))
+                    reordered.Add(svc);
+            }
+
+            // Update Order sequentially
+            for (int i = 0; i < reordered.Count; i++)
+            {
+                reordered[i].Order = i;
+            }
+
+            _services.Clear();
+            _services.AddRange(reordered);
+
+            // ══ Deliberately NO Sort() and NO ServicesChanged ══
+            // The UI already reordered its ObservableCollection via Move().
+            // Firing the event would clear + rebuild → flicker.
             _ = SaveAsync();
         }
 
@@ -187,7 +207,6 @@ namespace DIHub.Core.Services
 
         private static IEnumerable<AIService> CreateDefaults()
         {
-            // ⭐ Popular (7 services)
             var list = new List<AIService>
             {
                 new() { Name = "ChatGPT",           Url = "https://chatgpt.com/",              Icon = "\uE8F2", Accent = AccentColor.Purple, Order = 0 },
@@ -197,8 +216,6 @@ namespace DIHub.Core.Services
                 new() { Name = "Grok",              Url = "https://grok.com/",                 Icon = "\uE8F2", Accent = AccentColor.Blue,   Order = 4 },
                 new() { Name = "DeepSeek",          Url = "https://chat.deepseek.com/",        Icon = "\uE99A", Accent = AccentColor.Purple, Order = 5 },
                 new() { Name = "Copilot",           Url = "https://copilot.microsoft.com/",    Icon = "\uE774", Accent = AccentColor.Green,  Order = 6 },
-
-                // ⚡ Free / Multi-Model (5 services)
                 new() { Name = "Poe",               Url = "https://poe.com/",                  Icon = "\uE8F2", Accent = AccentColor.Purple, Order = 7 },
                 new() { Name = "Mistral",           Url = "https://chat.mistral.ai/",          Icon = "\uE945", Accent = AccentColor.Orange, Order = 8 },
                 new() { Name = "OpenRouter",        Url = "https://openrouter.ai/chat",        Icon = "\uE774", Accent = AccentColor.Cyan,   Order = 9 },

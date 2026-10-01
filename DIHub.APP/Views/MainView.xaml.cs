@@ -13,6 +13,7 @@ using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Media;
 using Microsoft.UI.Xaml.Media.Animation;
+using Windows.ApplicationModel.DataTransfer;
 using Windows.Foundation;
 using Windows.System;
 
@@ -37,6 +38,18 @@ namespace DIHub.APP.Views
         private const double SidebarCollapsedWidth = 0;
         private const int SidebarAnimationMs = 200;
 
+        /// <summary>
+        /// Prevents the CollectionChanged handler from re-persisting / re-checking
+        /// when we programmatically revert or move items.
+        /// </summary>
+        private bool _suppressReorderPersistence;
+
+        /// <summary>
+        /// The service currently being dragged from the header. Set in
+        /// OnGripDragStarting and consumed by OnServicesDrop.
+        /// </summary>
+        private AIService? _draggingService;
+
         public event EventHandler<FrameworkElement>? TitleBarReady;
 
         public MainView()
@@ -53,6 +66,9 @@ namespace DIHub.APP.Views
 
             ViewModel.Tabs.CollectionChanged += OnTabsCollectionChanged;
             ViewModel.PropertyChanged += OnViewModelPropertyChanged;
+
+            ViewModel.Services.CollectionChanged += OnServicesCollectionChanged;
+
             _serviceManager.ServicesChanged += (s, e) => DispatcherQueue.TryEnqueue(UpdateSidebarEmptyState);
 
             _workspaceManager.WorkspacesChanged += (s, e) => DispatcherQueue.TryEnqueue(BuildWorkspaceMenu);
@@ -85,6 +101,282 @@ namespace DIHub.APP.Views
         private void OnSearchBoxClicked(object sender, RoutedEventArgs e)
         {
             ShowCommandPalette();
+        }
+
+        // ─────────────────────────────────────────────
+        //  Service Reorder — Premium Drag & Drop
+        //  ─────────────────────────────────────────────
+        //  The header grid (grip + icon + name) has CanDrag="True",
+        //  so dragging anywhere on that surface lifts a preview of the
+        //  entire header — not just the tiny grip.
+        //  The menu button sits above the header grid and captures its
+        //  own pointer events, so it is not part of the drag surface.
+        //  During DragOver we position the DropIndicator (accent line)
+        //  so the user can see exactly where the item will land.
+        //  ─────────────────────────────────────────────
+
+        private void OnGripDragStarting(object sender, DragStartingEventArgs e)
+        {
+            if (sender is not FrameworkElement header) return;
+            if (header.DataContext is not AIService service) return;
+
+            _draggingService = service;
+            e.Data.RequestedOperation = DataPackageOperation.Move;
+        }
+
+        private void OnServicesDragOver(object sender, DragEventArgs e)
+        {
+            if (_draggingService is null) return;
+
+            e.AcceptedOperation = DataPackageOperation.Move;
+
+            try
+            {
+                if (e.DragUIOverride is not null)
+                {
+                    e.DragUIOverride.IsCaptionVisible = false;
+                    e.DragUIOverride.IsGlyphVisible = false;
+                }
+            }
+            catch { /* best-effort */ }
+
+            // Position the accent-line indicator at the computed insertion point.
+            var point = e.GetPosition(ServicesList);
+            var (visualIndex, insertAfter, y) = FindDropPosition(point);
+
+            if (visualIndex < 0)
+            {
+                HideDropIndicator();
+                return;
+            }
+
+            ShowDropIndicator(y);
+        }
+
+        private void OnServicesDragLeave(object sender, DragEventArgs e)
+        {
+            HideDropIndicator();
+        }
+
+        private void OnServicesDrop(object sender, DragEventArgs e)
+        {
+            HideDropIndicator();
+
+            var dragged = _draggingService;
+            _draggingService = null;
+
+            if (dragged is null) return;
+
+            var list = ViewModel.Services;
+            var oldIndex = list.IndexOf(dragged);
+            if (oldIndex < 0) return;
+
+            var point = e.GetPosition(ServicesList);
+            var (visualIndex, insertAfter, _) = FindDropPosition(point);
+            if (visualIndex < 0) return;
+
+            // Convert "between items" position to a final index in the list
+            // that results AFTER the dragged item is removed.
+            int insertionIndex = insertAfter ? visualIndex + 1 : visualIndex;
+
+            int newIndex = insertionIndex;
+            if (oldIndex < insertionIndex)
+                newIndex = insertionIndex - 1;
+
+            if (newIndex < 0) newIndex = 0;
+            if (newIndex >= list.Count) newIndex = list.Count - 1;
+            if (newIndex == oldIndex) return;
+
+            // Favorites invariant — validate the resulting order BEFORE we
+            // commit, so we don't flash an invalid state on screen.
+            var hypothetical = new List<AIService>(list);
+            hypothetical.RemoveAt(oldIndex);
+            hypothetical.Insert(newIndex, dragged);
+            if (ViolatesFavoritesConstraint(hypothetical)) return;
+
+            // Commit. ObservableCollection.Move triggers the built-in
+            // ReorderThemeTransition on the ListView, giving a smooth
+            // native settle without any flicker.
+            try
+            {
+                list.Move(oldIndex, newIndex);
+            }
+            catch { }
+
+            // CollectionChanged handler persists the new order.
+        }
+
+        /// <summary>
+        /// Finds which item the pointer is currently over, whether it is in
+        /// the upper (before) or lower (after) half, and the Y coordinate
+        /// (in ServicesList space) where the drop indicator line should sit.
+        /// </summary>
+        private (int index, bool insertAfter, double y) FindDropPosition(Point point)
+        {
+            var list = ViewModel.Services;
+
+            // Edge case: pointer is above the first item.
+            if (list.Count > 0 &&
+                ServicesList.ContainerFromIndex(0) is FrameworkElement first)
+            {
+                var firstTop = first
+                    .TransformToVisual(ServicesList)
+                    .TransformPoint(new Point(0, 0)).Y;
+                if (point.Y < firstTop)
+                    return (0, false, firstTop);
+            }
+
+            // Find the item under the pointer.
+            for (int i = 0; i < list.Count; i++)
+            {
+                if (ServicesList.ContainerFromIndex(i) is not FrameworkElement container)
+                    continue;
+
+                var topLeft = container
+                    .TransformToVisual(ServicesList)
+                    .TransformPoint(new Point(0, 0));
+
+                var top = topLeft.Y;
+                var bottom = top + container.ActualHeight;
+
+                if (point.Y >= top && point.Y < bottom)
+                {
+                    var midpoint = (top + bottom) / 2.0;
+                    var insertAfter = point.Y >= midpoint;
+                    return (i, insertAfter, insertAfter ? bottom : top);
+                }
+            }
+
+            // Edge case: pointer is below the last item.
+            var lastIndex = list.Count - 1;
+            if (lastIndex >= 0 &&
+                ServicesList.ContainerFromIndex(lastIndex) is FrameworkElement lastContainer)
+            {
+                var lastTop = lastContainer
+                    .TransformToVisual(ServicesList)
+                    .TransformPoint(new Point(0, 0)).Y;
+                var lastBottom = lastTop + lastContainer.ActualHeight;
+
+                if (point.Y >= lastBottom)
+                    return (lastIndex, true, lastBottom);
+            }
+
+            return (-1, false, 0);
+        }
+
+        private void ShowDropIndicator(double y)
+        {
+            // Center the 2px line on the insertion boundary.
+            DropIndicatorTransform.Y = y - 1;
+            DropIndicator.Visibility = Visibility.Visible;
+        }
+
+        private void HideDropIndicator()
+        {
+            DropIndicator.Visibility = Visibility.Collapsed;
+        }
+
+        private void OnServicesCollectionChanged(object? sender, NotifyCollectionChangedEventArgs e)
+        {
+            if (e.Action != NotifyCollectionChangedAction.Move) return;
+            if (_suppressReorderPersistence) return;
+            if (e.OldStartingIndex == e.NewStartingIndex) return;
+
+            var list = ViewModel.Services;
+
+            if (ViolatesFavoritesConstraint(list))
+            {
+                _suppressReorderPersistence = true;
+                try
+                {
+                    list.Move(e.NewStartingIndex, e.OldStartingIndex);
+                }
+                catch { }
+                finally
+                {
+                    _suppressReorderPersistence = false;
+                }
+                return;
+            }
+
+            try
+            {
+                var orderedIds = list.Select(s => s.Id).ToList();
+                _serviceManager.ReorderServices(orderedIds);
+            }
+            catch { }
+        }
+
+        /// <summary>
+        /// Invariant: Favorites occupy the top of the list; Non-Favorites occupy the bottom.
+        /// </summary>
+        private static bool ViolatesFavoritesConstraint(IList<AIService> list)
+        {
+            var seenNonFavorite = false;
+            for (int i = 0; i < list.Count; i++)
+            {
+                if (!list[i].Favorite)
+                {
+                    seenNonFavorite = true;
+                }
+                else if (seenNonFavorite)
+                {
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        // ─────────────────────────────────────────────
+        //  Favorites (Add / Remove from ⋮ menu)
+        // ─────────────────────────────────────────────
+
+        private void OnAddServiceFavoriteClicked(object sender, RoutedEventArgs e)
+        {
+            if (!TryGetServiceFromMenu(sender, out var svc)) return;
+            SetServiceFavorite(svc!, true);
+        }
+
+        private void OnRemoveServiceFavoriteClicked(object sender, RoutedEventArgs e)
+        {
+            if (!TryGetServiceFromMenu(sender, out var svc)) return;
+            SetServiceFavorite(svc!, false);
+        }
+
+        private void SetServiceFavorite(AIService svc, bool favorite)
+        {
+            if (svc is null || svc.Favorite == favorite) return;
+
+            var list = ViewModel.Services;
+            var oldIndex = list.IndexOf(svc);
+            if (oldIndex < 0) return;
+
+            svc.Favorite = favorite;
+
+            var targetIndex = list.Count(s => s.Favorite && s != svc);
+            if (targetIndex < 0) targetIndex = 0;
+            if (targetIndex >= list.Count) targetIndex = list.Count - 1;
+
+            if (oldIndex != targetIndex)
+            {
+                _suppressReorderPersistence = true;
+                try
+                {
+                    list.Move(oldIndex, targetIndex);
+                }
+                catch { }
+                finally
+                {
+                    _suppressReorderPersistence = false;
+                }
+            }
+
+            try
+            {
+                var orderedIds = list.Select(s => s.Id).ToList();
+                _serviceManager.ReorderServices(orderedIds);
+            }
+            catch { }
         }
 
         // ─────────────────────────────────────────────

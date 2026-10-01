@@ -9,6 +9,13 @@
     xmlns:models="using:DIHub.Core.Models"
     mc:Ignorable="d">
 
+    <UserControl.Resources>
+        <SolidColorBrush x:Key="ListViewItemBackgroundSelected" Color="Transparent" />
+        <SolidColorBrush x:Key="ListViewItemBackgroundSelectedPointerOver" Color="Transparent" />
+        <SolidColorBrush x:Key="ListViewItemBackgroundSelectedPressed" Color="Transparent" />
+        <SolidColorBrush x:Key="ListViewItemBackgroundSelectedDisabled" Color="Transparent" />
+    </UserControl.Resources>
+
     <Grid x:Name="RootGrid"
           Background="{ThemeResource AppBackgroundBrush}"
           KeyboardAcceleratorPlacementMode="Hidden">
@@ -152,148 +159,252 @@
                                FontWeight="SemiBold" Margin="16,8,16,8" />
 
                     <Grid Grid.Row="2">
-                        <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="8,0,8,8">
-                            <ItemsControl x:Name="ServicesList"
-                                          ItemsSource="{x:Bind ViewModel.Services, Mode=OneWay}">
-                                <ItemsControl.ItemTemplate>
-                                    <DataTemplate x:DataType="models:AIService">
-                                        <Expander HorizontalAlignment="Stretch"
-                                                  HorizontalContentAlignment="Stretch"
-                                                  Margin="0,1">
-                                            <Expander.Header>
-                                                <Grid Padding="4,2">
+                        <!-- ═══════════════════════════════════════════════════════ -->
+                        <!--  Service List — Premium Native Drag & Drop             -->
+                        <!--  · The whole header (grip + icon + name) is draggable. -->
+                        <!--  · Menu button sits on top of the header grid and      -->
+                        <!--    captures pointer events, so no drag from there.     -->
+                        <!--  · DropIndicator (accent line) shows insertion target. -->
+                        <!-- ═══════════════════════════════════════════════════════ -->
+                        <ListView x:Name="ServicesList"
+                                  ItemsSource="{x:Bind ViewModel.Services, Mode=OneWay}"
+                                  SelectionMode="None"
+                                  IsItemClickEnabled="False"
+                                  AllowDrop="True"
+                                  DragOver="OnServicesDragOver"
+                                  DragLeave="OnServicesDragLeave"
+                                  Drop="OnServicesDrop"
+                                  Padding="8,0,8,8"
+                                  ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                                  ScrollViewer.VerticalScrollBarVisibility="Auto">
+                            <ListView.ItemsPanel>
+                                <ItemsPanelTemplate>
+                                    <ItemsStackPanel Orientation="Vertical" />
+                                </ItemsPanelTemplate>
+                            </ListView.ItemsPanel>
+                            <ListView.ItemContainerStyle>
+                                <Style TargetType="ListViewItem">
+                                    <Setter Property="Padding" Value="0" />
+                                    <Setter Property="Margin" Value="0" />
+                                    <Setter Property="MinHeight" Value="0" />
+                                    <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+                                    <Setter Property="Background" Value="Transparent" />
+                                    <Setter Property="BorderThickness" Value="0" />
+                                </Style>
+                            </ListView.ItemContainerStyle>
+
+                            <ListView.ItemTemplate>
+                                <DataTemplate x:DataType="models:AIService">
+                                    <Expander HorizontalAlignment="Stretch"
+                                              HorizontalContentAlignment="Stretch"
+                                              Margin="0,1">
+                                        <Expander.Header>
+                                            <Grid Padding="0,2,4,2">
+                                                <!-- ═══════════════════════════════════════════ -->
+                                                <!--  Draggable header area: grip + icon + name  -->
+                                                <!--  Background=Transparent is REQUIRED so the  -->
+                                                <!--  hit-test zone covers the whole row and     -->
+                                                <!--  the drag visual is not visually intrusive.-->
+                                                <!-- ═══════════════════════════════════════════ -->
+                                                <Grid Background="Transparent"
+                                                      CanDrag="True"
+                                                      DragStarting="OnGripDragStarting">
                                                     <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="Auto" />
                                                         <ColumnDefinition Width="Auto" />
                                                         <ColumnDefinition Width="*" />
                                                         <ColumnDefinition Width="Auto" />
                                                     </Grid.ColumnDefinitions>
-                                                    <FontIcon Grid.Column="0" Glyph="{x:Bind Icon}"
-                                                              FontSize="14" VerticalAlignment="Center" Margin="0,0,10,0"
+
+                                                    <!-- Grip — pure visual indicator -->
+                                                    <FontIcon Grid.Column="0"
+                                                              Glyph="&#xE76F;"
+                                                              FontSize="12"
+                                                              Width="22"
+                                                              HorizontalAlignment="Center"
+                                                              VerticalAlignment="Center"
+                                                              Foreground="{ThemeResource AppTextSecondaryBrush}"
+                                                              ToolTipService.ToolTip="Drag to reorder" />
+
+                                                    <!-- Service icon -->
+                                                    <FontIcon Grid.Column="1"
+                                                              Glyph="{x:Bind Icon}"
+                                                              FontSize="14"
+                                                              VerticalAlignment="Center"
+                                                              Margin="0,0,10,0"
                                                               Foreground="{x:Bind Accent, Converter={StaticResource AccentColorToBrushConverter}}" />
-                                                    <TextBlock Grid.Column="1" Text="{x:Bind Name}"
+
+                                                    <!-- Service name -->
+                                                    <TextBlock Grid.Column="2"
+                                                               Text="{x:Bind Name}"
                                                                VerticalAlignment="Center"
                                                                TextTrimming="CharacterEllipsis"
                                                                FontSize="13" />
 
-                                                    <Button Grid.Column="2"
-                                                            Width="28" Height="28"
-                                                            Padding="0"
-                                                            Background="Transparent"
-                                                            BorderThickness="0"
-                                                            Tag="{Binding}"
-                                                            ToolTipService.ToolTip="Service options">
-                                                        <FontIcon Glyph="&#xE712;" FontSize="11" />
-                                                        <Button.Flyout>
-                                                            <MenuFlyout Placement="BottomEdgeAlignedRight">
-                                                                <MenuFlyoutItem Text="Open Default Account"
-                                                                                Tag="{Binding}"
-                                                                                Click="OnServiceOpenDefaultClicked">
-                                                                    <MenuFlyoutItem.Icon>
-                                                                        <FontIcon Glyph="&#xE8A7;" />
-                                                                    </MenuFlyoutItem.Icon>
-                                                                </MenuFlyoutItem>
-                                                                <MenuFlyoutItem Text="Add Account..."
-                                                                                Tag="{Binding}"
-                                                                                Click="OnAddAccountClicked">
-                                                                    <MenuFlyoutItem.Icon>
-                                                                        <FontIcon Glyph="&#xE710;" />
-                                                                    </MenuFlyoutItem.Icon>
-                                                                </MenuFlyoutItem>
-                                                                <MenuFlyoutSeparator />
-                                                                <MenuFlyoutItem Text="Open in Browser"
-                                                                                Tag="{Binding}"
-                                                                                Click="OnServiceOpenExternalClicked">
-                                                                    <MenuFlyoutItem.Icon>
-                                                                        <FontIcon Glyph="&#xE774;" />
-                                                                    </MenuFlyoutItem.Icon>
-                                                                </MenuFlyoutItem>
-                                                                <MenuFlyoutSeparator />
-                                                                <MenuFlyoutItem Text="Delete Service"
-                                                                                Tag="{Binding}"
-                                                                                Click="OnDeleteServiceClicked">
-                                                                    <MenuFlyoutItem.Icon>
-                                                                        <FontIcon Glyph="&#xE74D;" />
-                                                                    </MenuFlyoutItem.Icon>
-                                                                </MenuFlyoutItem>
-                                                            </MenuFlyout>
-                                                        </Button.Flyout>
-                                                    </Button>
+                                                    <!-- Reserved gap for the menu button (so
+                                                         the header layout stays aligned). -->
+                                                    <Border Grid.Column="3" Width="28" />
                                                 </Grid>
-                                            </Expander.Header>
 
-                                            <StackPanel Spacing="2" Margin="0,2,0,4">
-                                                <ItemsControl ItemsSource="{x:Bind Accounts}">
-                                                    <ItemsControl.ItemTemplate>
-                                                        <DataTemplate x:DataType="models:AIAccount">
-                                                            <Button HorizontalAlignment="Stretch"
-                                                                    HorizontalContentAlignment="Left"
-                                                                    Padding="8,6"
-                                                                    Background="Transparent"
-                                                                    BorderThickness="0"
-                                                                    CornerRadius="6"
-                                                                    Tag="{Binding}"
-                                                                    Click="OnAccountClicked"
-                                                                    ToolTipService.ToolTip="{x:Bind Name}">
-                                                                <Grid>
-                                                                    <Grid.ColumnDefinitions>
-                                                                        <ColumnDefinition Width="Auto" />
-                                                                        <ColumnDefinition Width="*" />
-                                                                        <ColumnDefinition Width="Auto" />
-                                                                    </Grid.ColumnDefinitions>
-                                                                    <FontIcon Grid.Column="0"
-                                                                              Glyph="{x:Bind Icon, Mode=OneWay}"
-                                                                              FontSize="12" VerticalAlignment="Center"
-                                                                              Margin="0,0,8,0"
-                                                                              Foreground="{x:Bind Accent, Mode=OneWay, Converter={StaticResource AccentColorToBrushConverter}}" />
-                                                                    <TextBlock Grid.Column="1" Text="{x:Bind Name, Mode=OneWay}"
-                                                                               FontSize="12" VerticalAlignment="Center"
-                                                                               TextTrimming="CharacterEllipsis" />
-                                                                    <FontIcon Grid.Column="2" Glyph="&#xE735;" FontSize="10"
-                                                                              VerticalAlignment="Center"
-                                                                              Foreground="{StaticResource AppAccentBrush}"
-                                                                              Visibility="{x:Bind Favorite, Mode=OneWay, Converter={StaticResource BoolToVisibilityConverter}}" />
-                                                                </Grid>
-                                                                <Button.ContextFlyout>
-                                                                    <MenuFlyout>
-                                                                        <MenuFlyoutItem Text="Open" Tag="{Binding}" Click="OnAccountOpenClicked" />
-                                                                        <MenuFlyoutItem Text="Open in New Tab" Tag="{Binding}" Click="OnAccountOpenNewTabClicked" />
-                                                                        <MenuFlyoutSeparator />
-                                                                        <MenuFlyoutItem Text="Set as Default" Tag="{Binding}" Click="OnAccountSetDefaultClicked" />
-                                                                        <MenuFlyoutItem Text="Toggle Favorite" Tag="{Binding}" Click="OnAccountFavoriteClicked" />
-                                                                        <MenuFlyoutItem Text="Rename..." Tag="{Binding}" Click="OnAccountRenameClicked" />
-                                                                        <MenuFlyoutSeparator />
-                                                                        <MenuFlyoutItem Text="Clear Session" Tag="{Binding}" Click="OnAccountClearSessionClicked" />
-                                                                        <MenuFlyoutItem Text="Open in Browser" Tag="{Binding}" Click="OnAccountOpenExternalClicked" />
-                                                                        <MenuFlyoutSeparator />
-                                                                        <MenuFlyoutItem Text="Delete Account" Tag="{Binding}" Click="OnAccountDeleteClicked" />
-                                                                    </MenuFlyout>
-                                                                </Button.ContextFlyout>
-                                                            </Button>
-                                                        </DataTemplate>
-                                                    </ItemsControl.ItemTemplate>
-                                                </ItemsControl>
-
-                                                <Button HorizontalAlignment="Stretch"
-                                                        HorizontalContentAlignment="Left"
-                                                        Padding="8,6"
+                                                <!-- Menu button — sits on top of the draggable
+                                                     area. Since it captures pointer events itself,
+                                                     clicking it will NOT start a drag. -->
+                                                <Button HorizontalAlignment="Right"
+                                                        VerticalAlignment="Center"
+                                                        Width="28" Height="28"
+                                                        Padding="0"
                                                         Background="Transparent"
                                                         BorderThickness="0"
-                                                        Click="OnAddAccountClicked"
-                                                        Tag="{Binding}">
-                                                    <StackPanel Orientation="Horizontal" Spacing="8">
-                                                        <FontIcon Glyph="&#xE710;" FontSize="11"
-                                                                  Foreground="{StaticResource AppAccentBrush}" />
-                                                        <TextBlock Text="Add Account"
-                                                                   Foreground="{StaticResource AppAccentBrush}"
-                                                                   FontSize="12" />
-                                                    </StackPanel>
+                                                        Tag="{Binding}"
+                                                        ToolTipService.ToolTip="Service options">
+                                                    <FontIcon Glyph="&#xE712;" FontSize="11" />
+                                                    <Button.Flyout>
+                                                        <MenuFlyout Placement="BottomEdgeAlignedRight">
+                                                            <MenuFlyoutItem Text="Open Default Account"
+                                                                            Tag="{Binding}"
+                                                                            Click="OnServiceOpenDefaultClicked">
+                                                                <MenuFlyoutItem.Icon>
+                                                                    <FontIcon Glyph="&#xE8A7;" />
+                                                                </MenuFlyoutItem.Icon>
+                                                            </MenuFlyoutItem>
+                                                            <MenuFlyoutItem Text="Add Account..."
+                                                                            Tag="{Binding}"
+                                                                            Click="OnAddAccountClicked">
+                                                                <MenuFlyoutItem.Icon>
+                                                                    <FontIcon Glyph="&#xE710;" />
+                                                                </MenuFlyoutItem.Icon>
+                                                            </MenuFlyoutItem>
+                                                            <MenuFlyoutSeparator />
+                                                            <MenuFlyoutItem Text="Add to Favorites"
+                                                                            Tag="{Binding}"
+                                                                            Click="OnAddServiceFavoriteClicked"
+                                                                            Visibility="{Binding Favorite, Converter={StaticResource BoolToVisibilityConverter}, ConverterParameter=Invert}">
+                                                                <MenuFlyoutItem.Icon>
+                                                                    <FontIcon Glyph="&#xE734;" />
+                                                                </MenuFlyoutItem.Icon>
+                                                            </MenuFlyoutItem>
+                                                            <MenuFlyoutItem Text="Remove from Favorites"
+                                                                            Tag="{Binding}"
+                                                                            Click="OnRemoveServiceFavoriteClicked"
+                                                                            Visibility="{Binding Favorite, Converter={StaticResource BoolToVisibilityConverter}}">
+                                                                <MenuFlyoutItem.Icon>
+                                                                    <FontIcon Glyph="&#xE735;" />
+                                                                </MenuFlyoutItem.Icon>
+                                                            </MenuFlyoutItem>
+                                                            <MenuFlyoutSeparator />
+                                                            <MenuFlyoutItem Text="Open in Browser"
+                                                                            Tag="{Binding}"
+                                                                            Click="OnServiceOpenExternalClicked">
+                                                                <MenuFlyoutItem.Icon>
+                                                                    <FontIcon Glyph="&#xE774;" />
+                                                                </MenuFlyoutItem.Icon>
+                                                            </MenuFlyoutItem>
+                                                            <MenuFlyoutSeparator />
+                                                            <MenuFlyoutItem Text="Delete Service"
+                                                                            Tag="{Binding}"
+                                                                            Click="OnDeleteServiceClicked">
+                                                                <MenuFlyoutItem.Icon>
+                                                                    <FontIcon Glyph="&#xE74D;" />
+                                                                </MenuFlyoutItem.Icon>
+                                                            </MenuFlyoutItem>
+                                                        </MenuFlyout>
+                                                    </Button.Flyout>
                                                 </Button>
-                                            </StackPanel>
-                                        </Expander>
-                                    </DataTemplate>
-                                </ItemsControl.ItemTemplate>
-                            </ItemsControl>
-                        </ScrollViewer>
+                                            </Grid>
+                                        </Expander.Header>
+
+                                        <StackPanel Spacing="2" Margin="0,2,0,4">
+                                            <ItemsControl ItemsSource="{x:Bind Accounts}">
+                                                <ItemsControl.ItemTemplate>
+                                                    <DataTemplate x:DataType="models:AIAccount">
+                                                        <Button HorizontalAlignment="Stretch"
+                                                                HorizontalContentAlignment="Left"
+                                                                Padding="8,6"
+                                                                Background="Transparent"
+                                                                BorderThickness="0"
+                                                                CornerRadius="6"
+                                                                Tag="{Binding}"
+                                                                Click="OnAccountClicked"
+                                                                ToolTipService.ToolTip="{x:Bind Name}">
+                                                            <Grid>
+                                                                <Grid.ColumnDefinitions>
+                                                                    <ColumnDefinition Width="Auto" />
+                                                                    <ColumnDefinition Width="*" />
+                                                                    <ColumnDefinition Width="Auto" />
+                                                                </Grid.ColumnDefinitions>
+                                                                <FontIcon Grid.Column="0"
+                                                                          Glyph="{x:Bind Icon, Mode=OneWay}"
+                                                                          FontSize="12" VerticalAlignment="Center"
+                                                                          Margin="0,0,8,0"
+                                                                          Foreground="{x:Bind Accent, Mode=OneWay, Converter={StaticResource AccentColorToBrushConverter}}" />
+                                                                <TextBlock Grid.Column="1" Text="{x:Bind Name, Mode=OneWay}"
+                                                                           FontSize="12" VerticalAlignment="Center"
+                                                                           TextTrimming="CharacterEllipsis" />
+                                                                <FontIcon Grid.Column="2" Glyph="&#xE735;" FontSize="10"
+                                                                          VerticalAlignment="Center"
+                                                                          Foreground="{StaticResource AppAccentBrush}"
+                                                                          Visibility="{x:Bind Favorite, Mode=OneWay, Converter={StaticResource BoolToVisibilityConverter}}" />
+                                                            </Grid>
+                                                            <Button.ContextFlyout>
+                                                                <MenuFlyout>
+                                                                    <MenuFlyoutItem Text="Open" Tag="{Binding}" Click="OnAccountOpenClicked" />
+                                                                    <MenuFlyoutItem Text="Open in New Tab" Tag="{Binding}" Click="OnAccountOpenNewTabClicked" />
+                                                                    <MenuFlyoutSeparator />
+                                                                    <MenuFlyoutItem Text="Set as Default" Tag="{Binding}" Click="OnAccountSetDefaultClicked" />
+                                                                    <MenuFlyoutItem Text="Toggle Favorite" Tag="{Binding}" Click="OnAccountFavoriteClicked" />
+                                                                    <MenuFlyoutItem Text="Rename..." Tag="{Binding}" Click="OnAccountRenameClicked" />
+                                                                    <MenuFlyoutSeparator />
+                                                                    <MenuFlyoutItem Text="Clear Session" Tag="{Binding}" Click="OnAccountClearSessionClicked" />
+                                                                    <MenuFlyoutItem Text="Open in Browser" Tag="{Binding}" Click="OnAccountOpenExternalClicked" />
+                                                                    <MenuFlyoutSeparator />
+                                                                    <MenuFlyoutItem Text="Delete Account" Tag="{Binding}" Click="OnAccountDeleteClicked" />
+                                                                </MenuFlyout>
+                                                            </Button.ContextFlyout>
+                                                        </Button>
+                                                    </DataTemplate>
+                                                </ItemsControl.ItemTemplate>
+                                            </ItemsControl>
+
+                                            <Button HorizontalAlignment="Stretch"
+                                                    HorizontalContentAlignment="Left"
+                                                    Padding="8,6"
+                                                    Background="Transparent"
+                                                    BorderThickness="0"
+                                                    Click="OnAddAccountClicked"
+                                                    Tag="{Binding}">
+                                                <StackPanel Orientation="Horizontal" Spacing="8">
+                                                    <FontIcon Glyph="&#xE710;" FontSize="11"
+                                                              Foreground="{StaticResource AppAccentBrush}" />
+                                                    <TextBlock Text="Add Account"
+                                                               Foreground="{StaticResource AppAccentBrush}"
+                                                               FontSize="12" />
+                                                </StackPanel>
+                                            </Button>
+                                        </StackPanel>
+                                    </Expander>
+                                </DataTemplate>
+                            </ListView.ItemTemplate>
+                        </ListView>
+
+                        <!-- ═══════════════════════════════════════════════════════ -->
+                        <!--  Drop Indicator — thin accent line that shows exactly  -->
+                        <!--  where the dragged item will be inserted. Positioned  -->
+                        <!--  via TranslateTransform.Y during DragOver.            -->
+                        <!-- ═══════════════════════════════════════════════════════ -->
+                        <Border x:Name="DropIndicator"
+                                Height="2"
+                                Margin="14,0,14,0"
+                                Background="{StaticResource AppAccentBrush}"
+                                CornerRadius="1"
+                                HorizontalAlignment="Stretch"
+                                VerticalAlignment="Top"
+                                Visibility="Collapsed"
+                                IsHitTestVisible="False"
+                                Opacity="0.9">
+                            <Border.RenderTransform>
+                                <TranslateTransform x:Name="DropIndicatorTransform" Y="0" />
+                            </Border.RenderTransform>
+                        </Border>
 
                         <StackPanel x:Name="SidebarEmptyState"
                                     VerticalAlignment="Center"
@@ -445,7 +556,6 @@
                             <FontIcon x:Name="ReloadIcon" Glyph="&#xE72C;" FontSize="14" />
                         </Button>
 
-                        <!-- ══ Address Bar (Fixed: vertically centered) ══ -->
                         <Border Grid.Column="3"
                                 Background="{ThemeResource AppSecondaryBrush}"
                                 BorderBrush="{ThemeResource AppBorderBrush}"
