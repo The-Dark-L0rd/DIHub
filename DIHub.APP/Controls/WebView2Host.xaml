@@ -9,7 +9,10 @@
 
     <Grid Background="{ThemeResource AppBackgroundBrush}">
 
-        <!-- WebView2 with Drop enabled at XAML level -->
+        <!-- WebView2 with AllowDrop=True (standard UIElement property).
+             The WebView2-specific AllowExternalDrop is applied at runtime
+             via reflection in code-behind, so this compiles across all
+             Windows App SDK versions. -->
         <controls:WebView2 x:Name="WebView"
                            HorizontalAlignment="Stretch"
                            VerticalAlignment="Stretch"

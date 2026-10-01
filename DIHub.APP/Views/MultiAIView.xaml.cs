@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Collections.ObjectModel;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -13,6 +14,8 @@ using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Media;
+using Windows.ApplicationModel.DataTransfer;
+using Windows.Storage;
 using Windows.System;
 using Windows.UI;
 
@@ -36,6 +39,9 @@ namespace DIHub.APP.Views
         private int _lastSentCount = 0;
         private int _lastManualCount = 0;
         private int _lastFailedCount = 0;
+
+        /// <summary>Files attached to the next broadcast.</summary>
+        private readonly ObservableCollection<StorageFile> _attachedFiles = new();
 
         public event EventHandler? RequestClose;
 
@@ -96,6 +102,8 @@ namespace DIHub.APP.Views
         {
             CancelBroadcast();
             DisposeAllPanels();
+            _attachedFiles.Clear();
+            RefreshAttachedFilesUI();
             Visibility = Visibility.Collapsed;
             RequestClose?.Invoke(this, EventArgs.Empty);
         }
@@ -747,9 +755,192 @@ namespace DIHub.APP.Views
                 return;
             }
 
-            ComposerStatus.Text = $"Ready to send to {validTargets} of {totalPanels} panel(s).";
-            SendButtonText.Text = $"Send to {validTargets}";
+            var fileSuffix = _attachedFiles.Count > 0
+                ? $"  ·  {_attachedFiles.Count} file(s) attached"
+                : string.Empty;
+
+            ComposerStatus.Text = $"Ready to send to {validTargets} of {totalPanels} panel(s).{fileSuffix}";
+            SendButtonText.Text = _attachedFiles.Count > 0
+                ? $"Send to {validTargets} (+{_attachedFiles.Count} files)"
+                : $"Send to {validTargets}";
             SendButton.IsEnabled = true;
+        }
+
+        // ─────────────────────────────────────────────
+        //  File drag & drop on composer
+        // ─────────────────────────────────────────────
+
+        private void OnComposerDragOver(object sender, DragEventArgs e)
+        {
+            if (!e.DataView.Contains(StandardDataFormats.StorageItems))
+            {
+                e.AcceptedOperation = DataPackageOperation.None;
+                return;
+            }
+
+            e.AcceptedOperation = DataPackageOperation.Copy;
+
+            try
+            {
+                e.DragUIOverride.Caption = "Attach to prompt";
+                e.DragUIOverride.IsCaptionVisible = true;
+                e.DragUIOverride.IsGlyphVisible = true;
+            }
+            catch { /* DragUIOverride is best-effort */ }
+
+            SetComposerDropHighlight(true);
+        }
+
+        private void OnComposerDragLeave(object sender, DragEventArgs e)
+        {
+            SetComposerDropHighlight(false);
+        }
+
+        private async void OnComposerDrop(object sender, DragEventArgs e)
+        {
+            SetComposerDropHighlight(false);
+
+            if (!e.DataView.Contains(StandardDataFormats.StorageItems)) return;
+            e.Handled = true;
+
+            IReadOnlyList<IStorageItem> items;
+            try
+            {
+                items = await e.DataView.GetStorageItemsAsync();
+            }
+            catch
+            {
+                return;
+            }
+
+            var added = 0;
+            foreach (var item in items)
+            {
+                if (item is not StorageFile file) continue;
+
+                // Skip duplicates by path.
+                if (!string.IsNullOrEmpty(file.Path) &&
+                    _attachedFiles.Any(f => string.Equals(f.Path, file.Path, StringComparison.OrdinalIgnoreCase)))
+                    continue;
+
+                _attachedFiles.Add(file);
+                added++;
+            }
+
+            if (added > 0)
+            {
+                RefreshAttachedFilesUI();
+                UpdateComposerStatus();
+            }
+        }
+
+        private void SetComposerDropHighlight(bool on)
+        {
+            try
+            {
+                if (on)
+                {
+                    ComposerRoot.BorderBrush = (Brush)Application.Current.Resources["AppAccentBrush"];
+                    ComposerRoot.BorderThickness = new Thickness(0, 2, 0, 0);
+                }
+                else
+                {
+                    ComposerRoot.BorderBrush = (Brush)Application.Current.Resources["AppBorderBrush"];
+                    ComposerRoot.BorderThickness = new Thickness(0, 1, 0, 0);
+                }
+            }
+            catch { }
+        }
+
+        private void RefreshAttachedFilesUI()
+        {
+            AttachedFilesPanel.Children.Clear();
+
+            if (_attachedFiles.Count == 0)
+            {
+                AttachedFilesScroll.Visibility = Visibility.Collapsed;
+                return;
+            }
+
+            AttachedFilesScroll.Visibility = Visibility.Visible;
+
+            foreach (var file in _attachedFiles.ToList())
+            {
+                AttachedFilesPanel.Children.Add(BuildFileChip(file));
+            }
+        }
+
+        private Border BuildFileChip(StorageFile file)
+        {
+            var chip = new StackPanel
+            {
+                Orientation = Orientation.Horizontal,
+                Spacing = 6,
+                VerticalAlignment = VerticalAlignment.Center
+            };
+
+            chip.Children.Add(new FontIcon
+            {
+                Glyph = GetFileGlyph(file.FileType),
+                FontSize = 11,
+                VerticalAlignment = VerticalAlignment.Center,
+                Foreground = (Brush)Application.Current.Resources["AppTextPrimaryBrush"]
+            });
+
+            chip.Children.Add(new TextBlock
+            {
+                Text = file.Name,
+                FontSize = 10,
+                MaxWidth = 180,
+                TextTrimming = TextTrimming.CharacterEllipsis,
+                VerticalAlignment = VerticalAlignment.Center,
+                Foreground = (Brush)Application.Current.Resources["AppTextPrimaryBrush"]
+            });
+
+            var removeBtn = new Button
+            {
+                Width = 16,
+                Height = 16,
+                Padding = new Thickness(0),
+                Background = new SolidColorBrush(Colors.Transparent),
+                BorderThickness = new Thickness(0),
+                Content = new FontIcon { Glyph = "\uE711", FontSize = 8 }
+            };
+            removeBtn.Click += (s, e) =>
+            {
+                _attachedFiles.Remove(file);
+                RefreshAttachedFilesUI();
+                UpdateComposerStatus();
+            };
+
+            chip.Children.Add(removeBtn);
+
+            return new Border
+            {
+                Background = (Brush)Application.Current.Resources["AppSecondaryBrush"],
+                BorderBrush = (Brush)Application.Current.Resources["AppBorderBrush"],
+                BorderThickness = new Thickness(1),
+                CornerRadius = new CornerRadius(4),
+                Padding = new Thickness(6, 2, 2, 2),
+                Child = chip
+            };
+        }
+
+        private static string GetFileGlyph(string ext)
+        {
+            var e = (ext ?? string.Empty).ToLowerInvariant();
+            return e switch
+            {
+                ".png" or ".jpg" or ".jpeg" or ".gif" or ".webp" or ".bmp" or ".svg" or ".ico" => "\uEB9F",
+                ".pdf" => "\uEA90",
+                ".txt" or ".md" or ".log" or ".json" or ".xml" or ".yml" or ".yaml" => "\uE8A5",
+                ".doc" or ".docx" or ".rtf" or ".odt" => "\uE8A5",
+                ".xls" or ".xlsx" or ".csv" or ".ods" => "\uE9F9",
+                ".ppt" or ".pptx" or ".odp" => "\uE8A5",
+                ".zip" or ".rar" or ".7z" or ".tar" or ".gz" => "\uF012",
+                ".cs" or ".js" or ".ts" or ".py" or ".java" or ".cpp" or ".h" or ".html" or ".css" => "\uE943",
+                _ => "\uE7C3"
+            };
         }
 
         // ─────────────────────────────────────────────
@@ -783,7 +974,9 @@ namespace DIHub.APP.Views
         private async void OnSendClicked(object sender, RoutedEventArgs e)
         {
             var text = PromptInput.Text?.Trim() ?? string.Empty;
-            if (string.IsNullOrWhiteSpace(text)) return;
+
+            // Allow file-only sends too (with empty prompt).
+            if (string.IsNullOrWhiteSpace(text) && _attachedFiles.Count == 0) return;
 
             var ws = _manager.ActiveWorkspace;
             if (ws is null) return;
@@ -794,14 +987,16 @@ namespace DIHub.APP.Views
 
             if (targets.Count == 0) return;
 
-            // ── Confirm multi-send (respect setting) ──
+            // Snapshot the attached files so clearing the chips does not affect the broadcast.
+            var filesSnapshot = _attachedFiles.ToList();
+
             if (targets.Count > 1 && _settings.Current.MultiAIConfirmMultiSend)
             {
-                var confirmed = await ConfirmMultiSendAsync(targets);
+                var confirmed = await ConfirmMultiSendAsync(targets, filesSnapshot.Count);
                 if (!confirmed) return;
             }
 
-            await DispatchBroadcastAsync(text, targets);
+            await DispatchBroadcastAsync(text, targets, filesSnapshot);
 
             _presets.AddHistory(
                 text,
@@ -812,9 +1007,14 @@ namespace DIHub.APP.Views
 
             RefreshHistoryList();
             PromptInput.Text = string.Empty;
+
+            // Clear attached files after successful dispatch.
+            _attachedFiles.Clear();
+            RefreshAttachedFilesUI();
+            UpdateComposerStatus();
         }
 
-        private async Task<bool> ConfirmMultiSendAsync(List<MultiAIPanel> targets)
+        private async Task<bool> ConfirmMultiSendAsync(List<MultiAIPanel> targets, int fileCount)
         {
             var list = new StackPanel { Spacing = 6, MinWidth = 320 };
 
@@ -828,10 +1028,23 @@ namespace DIHub.APP.Views
                 });
             }
 
+            if (fileCount > 0)
+            {
+                list.Children.Add(new TextBlock
+                {
+                    Text = $"\n{fileCount} file(s) will be attached to each target before sending.",
+                    FontSize = 11,
+                    Opacity = 0.75,
+                    TextWrapping = TextWrapping.Wrap
+                });
+            }
+
             var dialog = new ContentDialog
             {
                 XamlRoot = RootGrid.XamlRoot,
-                Title = $"Send to {targets.Count} AIs?",
+                Title = fileCount > 0
+                    ? $"Send to {targets.Count} AIs with {fileCount} file(s)?"
+                    : $"Send to {targets.Count} AIs?",
                 Content = list,
                 PrimaryButtonText = $"Send to {targets.Count}",
                 CloseButtonText = "Cancel",
@@ -849,7 +1062,11 @@ namespace DIHub.APP.Views
         //  Broadcast
         // ─────────────────────────────────────────────
 
-        private async Task DispatchBroadcastAsync(string prompt, List<MultiAIPanel> targets, bool isRetry = false)
+        private async Task DispatchBroadcastAsync(
+            string prompt,
+            List<MultiAIPanel> targets,
+            IReadOnlyList<StorageFile>? files = null,
+            bool isRetry = false)
         {
             _broadcastCts?.Dispose();
             _broadcastCts = new CancellationTokenSource();
@@ -887,9 +1104,54 @@ namespace DIHub.APP.Views
 
                     var svc = _serviceManager.FindService(panel.ServiceId);
                     var url = svc?.Url ?? string.Empty;
-                    var core = ctrl.GetWebHost()?.Core;
+                    var host = ctrl.GetWebHost();
+                    var core = host?.Core;
 
-                    var result = await _dispatcher.SendAsync(core!, url, prompt, token);
+                    if (core is null)
+                    {
+                        ctrl.SetDispatchState(PanelDispatchState.Failed);
+                        failedCount++;
+                        currentFailedIds.Add(panel.Id);
+                        continue;
+                    }
+
+                    // ── 1. Attach files (if any) ──
+                    if (files is { Count: > 0 })
+                    {
+                        try
+                        {
+                            var filePaths = files
+                                .Where(f => !string.IsNullOrEmpty(f.Path))
+                                .Select(f => f.Path)
+                                .ToList();
+
+                            if (filePaths.Count > 0)
+                            {
+                                var ok = await host!.TryAttachFilesAsync(filePaths);
+                                if (ok)
+                                {
+                                    // Give the site a moment to register the files
+                                    // before we try to send the prompt.
+                                    await Task.Delay(1600, token);
+                                }
+                            }
+                        }
+                        catch { /* best-effort: continue with prompt send */ }
+                    }
+
+                    // ── 2. Send prompt (skip if empty, since the user might have
+                    //        only wanted to attach files) ──
+                    if (string.IsNullOrWhiteSpace(prompt))
+                    {
+                        // Files-only dispatch. If we got here, files were attached,
+                        // so mark as sent (or unavailable if there was no prompt).
+                        ctrl.SetDispatchState(PanelDispatchState.Sent);
+                        sentCount++;
+                        try { await Task.Delay(120, token); } catch (OperationCanceledException) { }
+                        continue;
+                    }
+
+                    var result = await _dispatcher.SendAsync(core, url, prompt, token);
 
                     switch (result.Status)
                     {
@@ -981,7 +1243,8 @@ namespace DIHub.APP.Views
             var targets = ws.Panels.Where(p => _lastFailedPanelIds.Contains(p.Id)).ToList();
             if (targets.Count == 0) return;
 
-            await DispatchBroadcastAsync(_lastPrompt, targets, isRetry: true);
+            // Retries do not re-attach files (they are already sent).
+            await DispatchBroadcastAsync(_lastPrompt, targets, files: null, isRetry: true);
         }
 
         // ─────────────────────────────────────────────

@@ -1,6 +1,8 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Reflection;
+using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 using DIHub.Core.Interfaces;
@@ -94,7 +96,9 @@ namespace DIHub.APP.Controls
 
                 await WebView.EnsureCoreWebView2Async(_environment);
 
-                // Try to enable external drop via reflection (SDK-version dependent)
+                // Runtime best-effort: enable external (Explorer) drop on the
+                // WebView2 surface. The property may not exist in all WinAppSDK
+                // versions, so we use reflection.
                 TryEnableExternalDrop();
 
                 ConfigureWebView();
@@ -110,30 +114,39 @@ namespace DIHub.APP.Controls
             }
         }
 
+        /// <summary>
+        /// Best-effort reflection: set AllowExternalDrop=true so files can be
+        /// dropped directly onto the panel from Explorer. Silently no-ops when
+        /// the property isn't available in the current SDK.
+        /// </summary>
         private void TryEnableExternalDrop()
         {
+            // Try on the WinUI 3 wrapper control.
             try
             {
-                // Try the WinUI 3 WebView2.AllowExternalDrop property (SDK 1.6+)
                 var prop = WebView.GetType().GetProperty(
                     "AllowExternalDrop",
                     BindingFlags.Public | BindingFlags.Instance);
 
-                if (prop is not null && prop.CanWrite)
+                if (prop is not null && prop.CanWrite && prop.PropertyType == typeof(bool))
                     prop.SetValue(WebView, true);
+            }
+            catch { /* best-effort */ }
 
-                // Also try on CoreWebView2 (older SDKs)
+            // Some SDK versions expose it on the CoreWebView2 instance instead.
+            try
+            {
                 if (WebView.CoreWebView2 is not null)
                 {
                     var coreProp = WebView.CoreWebView2.GetType().GetProperty(
                         "AllowExternalDrop",
                         BindingFlags.Public | BindingFlags.Instance);
 
-                    if (coreProp is not null && coreProp.CanWrite)
+                    if (coreProp is not null && coreProp.CanWrite && coreProp.PropertyType == typeof(bool))
                         coreProp.SetValue(WebView.CoreWebView2, true);
                 }
             }
-            catch { }
+            catch { /* best-effort */ }
         }
 
         private void ConfigureWebView()
@@ -258,6 +271,83 @@ namespace DIHub.APP.Controls
             try { return await WebView.CoreWebView2.ExecuteScriptAsync(script); }
             catch { return "null"; }
         }
+
+        // ─────────────────────────────────────────────
+        //  File attachment via CDP (used by Multi-AI composer)
+        // ─────────────────────────────────────────────
+
+        /// <summary>
+        /// Injects a list of local file paths into the first &lt;input type="file"&gt;
+        /// element on the current page, using Chrome DevTools Protocol.
+        /// Returns true if injection succeeded.
+        /// </summary>
+        public async Task<bool> TryAttachFilesAsync(IReadOnlyList<string> filePaths)
+        {
+            if (_disposed || WebView.CoreWebView2 is null) return false;
+            if (filePaths is null || filePaths.Count == 0) return false;
+
+            try
+            {
+                // 1. Get the document root node id.
+                var docJson = await WebView.CoreWebView2.CallDevToolsProtocolMethodAsync(
+                    "DOM.getDocument", "{\"depth\": 0}");
+
+                using var doc = JsonDocument.Parse(docJson);
+                if (!doc.RootElement.TryGetProperty("root", out var root) ||
+                    !root.TryGetProperty("nodeId", out var rootIdEl))
+                    return false;
+
+                var rootNodeId = rootIdEl.GetInt32();
+
+                // 2. Find the first file input inside the page.
+                var qsParams = JsonSerializer.Serialize(new
+                {
+                    nodeId = rootNodeId,
+                    selector = "input[type=\"file\"]"
+                });
+
+                var qsJson = await WebView.CoreWebView2.CallDevToolsProtocolMethodAsync(
+                    "DOM.querySelector", qsParams);
+
+                using var qs = JsonDocument.Parse(qsJson);
+                if (!qs.RootElement.TryGetProperty("nodeId", out var nodeIdEl))
+                    return false;
+
+                var inputNodeId = nodeIdEl.GetInt32();
+                if (inputNodeId == 0) return false;
+
+                // 3. Set the files on the input.
+                var setParams = JsonSerializer.Serialize(new
+                {
+                    nodeId = inputNodeId,
+                    files = filePaths
+                });
+
+                await WebView.CoreWebView2.CallDevToolsProtocolMethodAsync(
+                    "DOM.setFileInputFiles", setParams);
+
+                // 4. Dispatch change + input so the site's listeners fire.
+                await WebView.CoreWebView2.ExecuteScriptAsync(@"
+                    (function(){
+                        var el = document.querySelector('input[type=file]');
+                        if (!el) return 'no-el';
+                        el.dispatchEvent(new Event('input', { bubbles: true }));
+                        el.dispatchEvent(new Event('change', { bubbles: true }));
+                        return 'ok';
+                    })();
+                ");
+
+                return true;
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
+        // ─────────────────────────────────────────────
+        //  WebView2 events
+        // ─────────────────────────────────────────────
 
         private void OnNavigationStarting(CoreWebView2 sender, CoreWebView2NavigationStartingEventArgs args)
         {

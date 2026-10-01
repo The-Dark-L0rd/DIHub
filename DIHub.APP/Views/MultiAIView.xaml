@@ -27,7 +27,6 @@
                     <ColumnDefinition Width="*" />
                 </Grid.ColumnDefinitions>
 
-                <!-- Left: Icon + Title -->
                 <StackPanel Grid.Column="0"
                             Orientation="Horizontal"
                             Spacing="6"
@@ -42,7 +41,6 @@
                                VerticalAlignment="Center" />
                 </StackPanel>
 
-                <!-- Center: Combo + Close -->
                 <StackPanel Grid.Column="1"
                             Orientation="Horizontal"
                             Spacing="6"
@@ -81,12 +79,29 @@
               RowSpacing="6" />
 
         <!-- ══ Prompt Composer ══ -->
-        <Border Grid.Row="2"
+        <Border x:Name="ComposerRoot"
+                Grid.Row="2"
+                AllowDrop="True"
+                DragOver="OnComposerDragOver"
+                DragLeave="OnComposerDragLeave"
+                Drop="OnComposerDrop"
                 Background="{ThemeResource AppSurfaceBrush}"
                 BorderBrush="{ThemeResource AppBorderBrush}"
                 BorderThickness="0,1,0,0"
                 Padding="10,6">
             <StackPanel Spacing="6">
+
+                <!-- ══ Attached Files Chips ══ -->
+                <ScrollViewer x:Name="AttachedFilesScroll"
+                              Visibility="Collapsed"
+                              HorizontalScrollBarVisibility="Auto"
+                              HorizontalScrollMode="Enabled"
+                              VerticalScrollBarVisibility="Disabled"
+                              VerticalScrollMode="Disabled">
+                    <StackPanel x:Name="AttachedFilesPanel"
+                                Orientation="Horizontal"
+                                Spacing="4" />
+                </ScrollViewer>
 
                 <StackPanel Orientation="Horizontal" Spacing="6">
                     <TextBlock Text="Targets:"
@@ -195,7 +210,7 @@
 
                     <TextBox x:Name="PromptInput"
                              Grid.Column="0"
-                             PlaceholderText="Ask multiple AIs..."
+                             PlaceholderText="Ask multiple AIs... (drop files anywhere on the composer to attach)"
                              AcceptsReturn="True"
                              TextWrapping="Wrap"
                              MinHeight="40"
