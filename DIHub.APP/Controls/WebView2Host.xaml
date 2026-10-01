@@ -7,14 +7,14 @@
     xmlns:controls="using:Microsoft.UI.Xaml.Controls"
     mc:Ignorable="d">
 
-    <Grid Background="{StaticResource AppBackgroundBrush}">
+    <Grid Background="{ThemeResource AppBackgroundBrush}">
 
-        <!-- WebView2 -->
+        <!-- WebView2 with Drop enabled at XAML level -->
         <controls:WebView2 x:Name="WebView"
                            HorizontalAlignment="Stretch"
-                           VerticalAlignment="Stretch" />
+                           VerticalAlignment="Stretch"
+                           AllowDrop="True" />
 
-        <!-- Loading Indicator -->
         <ProgressBar x:Name="LoadingBar"
                      VerticalAlignment="Top"
                      Height="2"
@@ -22,9 +22,8 @@
                      Foreground="{StaticResource AppAccentBrush}"
                      Visibility="Collapsed" />
 
-        <!-- Error Overlay -->
         <Grid x:Name="ErrorOverlay"
-              Background="{StaticResource AppBackgroundBrush}"
+              Background="{ThemeResource AppBackgroundBrush}"
               Visibility="Collapsed">
             <StackPanel HorizontalAlignment="Center"
                         VerticalAlignment="Center"
@@ -32,7 +31,7 @@
                         MaxWidth="400">
                 <FontIcon Glyph="&#xE783;"
                           FontSize="48"
-                          Foreground="{StaticResource AppTextSecondaryBrush}"
+                          Foreground="{ThemeResource AppTextSecondaryBrush}"
                           HorizontalAlignment="Center" />
                 <TextBlock x:Name="ErrorTitle"
                            Text="Unable to load this AI service."

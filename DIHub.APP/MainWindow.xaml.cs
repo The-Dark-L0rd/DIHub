@@ -1,5 +1,4 @@
 using System;
-using System.Linq;
 using DIHub.APP.Views;
 using DIHub.Core.Interfaces;
 using DIHub.Core.Models;
@@ -28,12 +27,12 @@ namespace DIHub.APP
 
             ConfigureTitleBar();
             ConfigureWindow();
+            SetWindowIcon();
             RestoreWindowState();
 
             MainViewContent.TitleBarReady += OnTitleBarReady;
             MainViewContent.Loaded += (s, e) => ApplyTheme();
 
-            // Save window state on close.
             AppWindow.Closing += OnAppWindowClosing;
         }
 
@@ -47,6 +46,34 @@ namespace DIHub.APP
             => DispatcherQueue.TryEnqueue(ApplyTheme);
 
         // ─────────────────────────────────────────────
+        //  Icon
+        // ─────────────────────────────────────────────
+
+        private void SetWindowIcon()
+        {
+            try
+            {
+                // Path to the icon — if packaged, use ms-appx; otherwise relative path
+                var iconPath = System.IO.Path.Combine(
+                    AppContext.BaseDirectory, "Assets", "DIHub.ico");
+
+                if (System.IO.File.Exists(iconPath))
+                {
+                    AppWindow.SetIcon(iconPath);
+                }
+                else
+                {
+                    // Fallback: use ms-appx (for packaged apps)
+                    AppWindow.SetIcon("Assets/DIHub.ico");
+                }
+            }
+            catch
+            {
+                // Icon is best-effort — don't crash if it fails
+            }
+        }
+
+        // ─────────────────────────────────────────────
         //  Window state
         // ─────────────────────────────────────────────
 
@@ -56,11 +83,9 @@ namespace DIHub.APP
             {
                 var state = _settings.Current.WindowState ?? new WindowStateModel();
 
-                // Default size.
                 var width = state.Width > 400 ? state.Width : 1400;
                 var height = state.Height > 300 ? state.Height : 900;
 
-                // Validate against connected monitors.
                 if (state.HasValidPosition && IsPositionOnAnyMonitor(state.X, state.Y, width, height))
                 {
                     AppWindow.MoveAndResize(new Windows.Graphics.RectInt32(state.X, state.Y, width, height));
@@ -92,7 +117,6 @@ namespace DIHub.APP
                     state.IsMaximized = presenter.State == OverlappedPresenterState.Maximized;
                 }
 
-                // Use restored bounds (in case window is maximized now).
                 var size = AppWindow.Size;
                 var pos = AppWindow.Position;
 
@@ -106,7 +130,6 @@ namespace DIHub.APP
                 }
                 else
                 {
-                    // Preserve previous position if maximized.
                     var prev = _settings.Current.WindowState;
                     state.X = prev?.X ?? -1;
                     state.Y = prev?.Y ?? -1;
@@ -128,7 +151,6 @@ namespace DIHub.APP
                 foreach (var display in displays)
                 {
                     var bounds = display.WorkArea;
-                    // Require at least 100x100 pixels of the window to be visible.
                     var overlapX = Math.Max(0, Math.Min(x + width, bounds.X + bounds.Width) - Math.Max(x, bounds.X));
                     var overlapY = Math.Max(0, Math.Min(y + height, bounds.Y + bounds.Height) - Math.Max(y, bounds.Y));
 
@@ -177,11 +199,11 @@ namespace DIHub.APP
         private static Color MapAccent(AccentColor accent) => accent switch
         {
             AccentColor.Purple => Color.FromArgb(255, 0x8B, 0x5C, 0xF6),
-            AccentColor.Blue => Color.FromArgb(255, 0x3B, 0x82, 0xF6),
-            AccentColor.Cyan => Color.FromArgb(255, 0x06, 0xB6, 0xD4),
-            AccentColor.Green => Color.FromArgb(255, 0x22, 0xC5, 0x5E),
+            AccentColor.Blue   => Color.FromArgb(255, 0x3B, 0x82, 0xF6),
+            AccentColor.Cyan   => Color.FromArgb(255, 0x06, 0xB6, 0xD4),
+            AccentColor.Green  => Color.FromArgb(255, 0x22, 0xC5, 0x5E),
             AccentColor.Orange => Color.FromArgb(255, 0xF9, 0x73, 0x16),
-            _ => Color.FromArgb(255, 0x8B, 0x5C, 0xF6)
+            _                  => Color.FromArgb(255, 0x8B, 0x5C, 0xF6)
         };
 
         private void UpdateCaptionButtons(ElementTheme requested)

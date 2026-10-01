@@ -1,5 +1,4 @@
-﻿using System.Threading.Tasks;
-using CommunityToolkit.Mvvm.Messaging;
+﻿using CommunityToolkit.Mvvm.Messaging;
 using DIHub.APP.Services;
 using DIHub.APP.ViewModels;
 using DIHub.Core.Interfaces;
@@ -9,15 +8,22 @@ using DIHub.Infrastructure.Web;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.UI.Xaml;
+using Microsoft.Windows.AppLifecycle;
+using System;
+using System.Threading.Tasks;
 
 namespace DIHub.APP
 {
     public partial class App : Application
     {
+        private const string SingleInstanceKey = "DIHub_MainInstance_v1";
+
         public IHost Host { get; }
 
         public static T GetService<T>() where T : class
             => ((App)Current).Host.Services.GetRequiredService<T>();
+
+        private Window? _mainWindow;
 
         public App()
         {
@@ -40,7 +46,6 @@ namespace DIHub.APP
                     services.AddSingleton<IAIAccountManager, AIAccountManager>();
                     services.AddSingleton<IMultiAIWorkspaceManager, MultiAIWorkspaceManager>();
                     services.AddSingleton<IPresetManager, PresetManager>();
-
                     services.AddSingleton<PromptDispatcher>();
 
                     services.AddSingleton<MainWindowViewModel>();
@@ -50,7 +55,52 @@ namespace DIHub.APP
 
         protected override void OnLaunched(LaunchActivatedEventArgs args)
         {
+            // Single-instance handling
+            try
+            {
+                var mainInstance = AppInstance.FindOrRegisterForKey(SingleInstanceKey);
+
+                if (!mainInstance.IsCurrent)
+                {
+                    var activatedArgs = AppInstance.GetCurrent().GetActivatedEventArgs();
+                    _ = mainInstance.RedirectActivationToAsync(activatedArgs);
+                    Environment.Exit(0);
+                    return;
+                }
+
+                mainInstance.Activated += OnAppInstanceActivated;
+            }
+            catch { }
+
             _ = BootstrapAsync();
+        }
+
+        private void OnAppInstanceActivated(object? sender, AppActivationArguments e)
+        {
+            try
+            {
+                if (_mainWindow is null) return;
+
+                _mainWindow.DispatcherQueue.TryEnqueue(() =>
+                {
+                    try
+                    {
+                        var hWnd = WinRT.Interop.WindowNative.GetWindowHandle(_mainWindow);
+                        var windowId = Microsoft.UI.Win32Interop.GetWindowIdFromWindow(hWnd);
+                        var appWindow = Microsoft.UI.Windowing.AppWindow.GetFromWindowId(windowId);
+
+                        if (appWindow.Presenter is Microsoft.UI.Windowing.OverlappedPresenter presenter)
+                        {
+                            if (presenter.State == Microsoft.UI.Windowing.OverlappedPresenterState.Minimized)
+                                presenter.Restore();
+                        }
+
+                        _mainWindow.Activate();
+                    }
+                    catch { }
+                });
+            }
+            catch { }
         }
 
         private async Task BootstrapAsync()
@@ -77,8 +127,8 @@ namespace DIHub.APP
             }
             catch { }
 
-            var window = new MainWindow();
-            window.Activate();
+            _mainWindow = new MainWindow();
+            _mainWindow.Activate();
         }
     }
 }

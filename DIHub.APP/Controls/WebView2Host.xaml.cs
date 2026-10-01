@@ -1,5 +1,6 @@
 using System;
 using System.IO;
+using System.Reflection;
 using System.Threading;
 using System.Threading.Tasks;
 using DIHub.Core.Interfaces;
@@ -34,7 +35,6 @@ namespace DIHub.APP.Controls
         public string? CurrentUrl => WebView.CoreWebView2?.Source;
         public bool CanGoBack => WebView.CoreWebView2?.CanGoBack == true;
         public bool CanGoForward => WebView.CoreWebView2?.CanGoForward == true;
-
         public CoreWebView2? Core => WebView.CoreWebView2;
 
         public WebView2Host()
@@ -94,19 +94,46 @@ namespace DIHub.APP.Controls
 
                 await WebView.EnsureCoreWebView2Async(_environment);
 
+                // Try to enable external drop via reflection (SDK-version dependent)
+                TryEnableExternalDrop();
+
                 ConfigureWebView();
                 WireEvents();
 
                 _isInitialized = true;
                 RaiseStateChanged(isLoading: false);
             }
-            catch (Exception ex)
+            catch
             {
-                // Never log the folder path or the exception message raw.
                 ShowError("WebView2 initialization failed.",
                     "Unable to start the embedded browser.");
-                _ = ex; // suppressed
             }
+        }
+
+        private void TryEnableExternalDrop()
+        {
+            try
+            {
+                // Try the WinUI 3 WebView2.AllowExternalDrop property (SDK 1.6+)
+                var prop = WebView.GetType().GetProperty(
+                    "AllowExternalDrop",
+                    BindingFlags.Public | BindingFlags.Instance);
+
+                if (prop is not null && prop.CanWrite)
+                    prop.SetValue(WebView, true);
+
+                // Also try on CoreWebView2 (older SDKs)
+                if (WebView.CoreWebView2 is not null)
+                {
+                    var coreProp = WebView.CoreWebView2.GetType().GetProperty(
+                        "AllowExternalDrop",
+                        BindingFlags.Public | BindingFlags.Instance);
+
+                    if (coreProp is not null && coreProp.CanWrite)
+                        coreProp.SetValue(WebView.CoreWebView2, true);
+                }
+            }
+            catch { }
         }
 
         private void ConfigureWebView()
@@ -121,9 +148,6 @@ namespace DIHub.APP.Controls
             settings.IsStatusBarEnabled = false;
             settings.IsZoomControlEnabled = true;
             settings.AreBrowserAcceleratorKeysEnabled = true;
-
-            // Hardening: keep built-in browser protections enabled.
-            // Do NOT disable smart screen, cert validation, or CSP.
         }
 
         private void WireEvents()
@@ -142,7 +166,6 @@ namespace DIHub.APP.Controls
             if (_disposed) return;
             if (string.IsNullOrWhiteSpace(url)) return;
 
-            // Enforce URL policy — reject dangerous schemes.
             if (!UrlPolicy.IsWebUrl(url))
             {
                 ShowError("Cannot load this link.",
@@ -232,15 +255,8 @@ namespace DIHub.APP.Controls
         public async Task<string> ExecuteScriptAsync(string script)
         {
             if (_disposed || WebView.CoreWebView2 is null) return "null";
-
-            try
-            {
-                return await WebView.CoreWebView2.ExecuteScriptAsync(script);
-            }
-            catch
-            {
-                return "null";
-            }
+            try { return await WebView.CoreWebView2.ExecuteScriptAsync(script); }
+            catch { return "null"; }
         }
 
         private void OnNavigationStarting(CoreWebView2 sender, CoreWebView2NavigationStartingEventArgs args)
@@ -270,7 +286,6 @@ namespace DIHub.APP.Controls
                 }
                 else
                 {
-                    // Do NOT expose the raw WebErrorStatus or URL.
                     ShowError("Unable to load this AI service.",
                         "Please check your connection and try again.");
                 }
@@ -282,10 +297,7 @@ namespace DIHub.APP.Controls
         private void OnNewWindowRequested(CoreWebView2 sender, CoreWebView2NewWindowRequestedEventArgs args)
         {
             args.Handled = true;
-
-            // Only forward safe URLs to the external browser.
             if (!UrlPolicy.IsWebUrl(args.Uri)) return;
-
             try
             {
                 var browserService = App.GetService<IBrowserService>();
