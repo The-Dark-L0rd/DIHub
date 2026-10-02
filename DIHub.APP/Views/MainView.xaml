@@ -65,6 +65,13 @@
                     <FontIcon Glyph="&#xE71D;" FontSize="14" />
                 </Button>
 
+                <Button x:Name="ExtensionsButton" Width="36" Height="36" Padding="0"
+                        Background="Transparent" BorderThickness="0"
+                        Click="OnExtensionsButtonClicked"
+                        ToolTipService.ToolTip="Extensions">
+                    <FontIcon Glyph="&#xE8B7;" FontSize="14" />
+                </Button>
+
                 <Button x:Name="SettingsButton" Width="36" Height="36" Padding="0"
                         Background="Transparent" BorderThickness="0"
                         Click="OnSettingsButtonClicked"
@@ -76,12 +83,14 @@
                 <TextBlock Text="DI Hub" Style="{StaticResource BodyTextStyle}" VerticalAlignment="Center" />
             </StackPanel>
 
+            <!-- Search box: centered, shrinks gracefully when the window is narrow. -->
             <Button Grid.Column="1"
-                    HorizontalAlignment="Center"
+                    HorizontalAlignment="Stretch"
                     VerticalAlignment="Center"
                     Padding="0"
                     BorderThickness="0"
                     Background="Transparent"
+                    Margin="12,0,12,0"
                     Click="OnSearchBoxClicked"
                     ToolTipService.ToolTip="Open Command Palette (Ctrl+K)">
                 <Border Background="{ThemeResource AppSecondaryBrush}"
@@ -89,16 +98,26 @@
                         BorderThickness="1"
                         CornerRadius="{StaticResource CornerRadiusMd}"
                         Padding="12,6"
-                        Width="320">
+                        HorizontalAlignment="Center"
+                        MinWidth="120"
+                        MaxWidth="320">
                     <StackPanel Orientation="Horizontal" Spacing="8">
                         <FontIcon Glyph="&#xE721;" FontSize="12"
                                   Foreground="{ThemeResource AppTextSecondaryBrush}" />
                         <TextBlock Text="Search or press Ctrl+K..."
                                    Style="{StaticResource CaptionTextStyle}"
-                                   VerticalAlignment="Center" />
+                                   VerticalAlignment="Center"
+                                   TextTrimming="CharacterEllipsis" />
                     </StackPanel>
                 </Border>
             </Button>
+
+            <!-- Column 2: reserved space for the caption buttons (minimize/maximize/close).
+                 The width is driven from code-behind using AppWindow.TitleBar.RightInset. -->
+            <Border x:Name="TitleBarRightSpacer"
+                    Grid.Column="2"
+                    Width="0"
+                    Background="Transparent" />
         </Grid>
 
         <!-- ══ Main Content ══ -->
@@ -438,9 +457,7 @@
                     <RowDefinition Height="*" />
                 </Grid.RowDefinitions>
 
-                <!-- ══════════════════════════════════════════════════════ -->
-                <!--  Tab Bar — Tabs + a "+ New Tab" button at the end    -->
-                <!-- ══════════════════════════════════════════════════════ -->
+                <!-- ══ Tab Bar ══ -->
                 <Border Grid.Row="0"
                         Background="{ThemeResource AppSurfaceBrush}"
                         BorderBrush="{ThemeResource AppBorderBrush}"
@@ -626,6 +643,10 @@
         <views:MultiAIView x:Name="MultiAIOverlay"
                            Grid.RowSpan="2"
                            RequestClose="OnMultiAIRequestClose" />
+
+        <views:ExtensionsView x:Name="ExtensionsOverlay"
+                              Grid.RowSpan="2"
+                              RequestClose="OnExtensionsRequestClose" />
 
         <controls:ToastHost x:Name="ToastOverlay" Grid.RowSpan="2" />
     </Grid>

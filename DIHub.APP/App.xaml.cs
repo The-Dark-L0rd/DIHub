@@ -3,6 +3,7 @@ using DIHub.APP.Services;
 using DIHub.APP.ViewModels;
 using DIHub.Core.Interfaces;
 using DIHub.Core.Services;
+using DIHub.Infrastructure.Extensions;
 using DIHub.Infrastructure.Storage;
 using DIHub.Infrastructure.Web;
 using Microsoft.Extensions.DependencyInjection;
@@ -22,6 +23,8 @@ namespace DIHub.APP
 
         public static T GetService<T>() where T : class
             => ((App)Current).Host.Services.GetRequiredService<T>();
+
+        public static Window? GetMainWindow() => ((App)Current)._mainWindow;
 
         private Window? _mainWindow;
 
@@ -48,14 +51,28 @@ namespace DIHub.APP
                     services.AddSingleton<IPresetManager, PresetManager>();
                     services.AddSingleton<PromptDispatcher>();
 
+                    // ── Extension platform (domain layer) ──
+                    services.AddSingleton<IExtensionStorageService, ExtensionStorageService>();
+                    services.AddSingleton<IExtensionValidator, ExtensionValidator>();
+                    services.AddSingleton<IExtensionPolicyResolver, ExtensionPolicyResolver>();
+                    services.AddSingleton<IExtensionDownloader, ExtensionDownloader>();
+                    services.AddSingleton<IExtensionManager, ExtensionManager>();
+
+                    // ── Extension catalog (local-first) ──
+                    services.AddSingleton<IExtensionCatalogService, ExtensionCatalogService>();
+
+                    // ── Extension profile applier (WebView2-aware, APP layer) ──
+                    services.AddSingleton<IExtensionProfileApplier, ExtensionProfileApplier>();
+
+                    // ── ViewModels ──
                     services.AddSingleton<MainWindowViewModel>();
+                    services.AddSingleton<ExtensionsViewModel>();
                 })
                 .Build();
         }
 
         protected override void OnLaunched(LaunchActivatedEventArgs args)
         {
-            // Single-instance handling
             try
             {
                 var mainInstance = AppInstance.FindOrRegisterForKey(SingleInstanceKey);
@@ -124,6 +141,11 @@ namespace DIHub.APP
 
                 var presets = GetService<IPresetManager>();
                 await presets.LoadAsync();
+
+                var extensions = GetService<IExtensionManager>();
+                await extensions.LoadAsync();
+
+                _ = GetService<IExtensionProfileApplier>();
             }
             catch { }
 

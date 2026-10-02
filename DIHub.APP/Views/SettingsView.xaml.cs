@@ -23,21 +23,21 @@ namespace DIHub.APP.Views
 
         private static readonly (string Shortcut, string Action)[] Shortcuts =
         {
-            ("Ctrl + K",        "Open Command Palette"),
-            ("Ctrl + L",        "Focus Address Bar"),
-            ("Ctrl + T",        "New Tab (first available service)"),
-            ("Ctrl + W",        "Close Current Tab"),
-            ("Ctrl + Shift + T","Restore Closed Tab"),
-            ("Ctrl + R",        "Reload Page (Main) / Reset Layout (Multi-AI)"),
-            ("Ctrl + Tab",      "Next Tab / Next Panel"),
+            ("Ctrl + K",         "Open Command Palette"),
+            ("Ctrl + L",         "Focus Address Bar"),
+            ("Ctrl + T",         "New Blank Tab"),
+            ("Ctrl + W",         "Close Current Tab"),
+            ("Ctrl + Shift + T", "Restore Closed Tab"),
+            ("Ctrl + R",         "Reload Page (Main) / Reset Layout (Multi-AI)"),
+            ("Ctrl + Tab",       "Next Tab / Next Panel"),
             ("Ctrl + Shift + Tab","Previous Tab / Previous Panel"),
-            ("Ctrl + Shift + D","Open Developer Tools"),
-            ("Ctrl + Shift + M","Open Multi-AI Workspace"),
-            ("Ctrl + Shift + B","Toggle Sidebar"),
-            ("Ctrl + 1 ... 4",  "Activate Panel N (Multi-AI only)"),
-            ("Ctrl + M",        "Maximize Panel (Multi-AI only)"),
-            ("Ctrl + ,",        "Open Settings"),
-            ("Esc",             "Close Multi-AI / Cancel Broadcast / Close Dialog"),
+            ("Ctrl + Shift + D", "Open Developer Tools"),
+            ("Ctrl + Shift + M", "Open Multi-AI Workspace"),
+            ("Ctrl + Shift + B", "Toggle Sidebar"),
+            ("Ctrl + 1 ... 4",   "Activate Panel N (Multi-AI only)"),
+            ("Ctrl + M",         "Maximize Panel (Multi-AI only)"),
+            ("Ctrl + ,",         "Open Settings"),
+            ("Esc",              "Close Multi-AI / Cancel Broadcast / Close Dialog"),
         };
 
         private readonly ISettingsService _settings;
@@ -49,6 +49,12 @@ namespace DIHub.APP.Views
 
         public event EventHandler? RequestClose;
         public event EventHandler? RequestClearAllData;
+
+        /// <summary>Raised when the user wants to jump into the Extensions manager.</summary>
+        public event EventHandler? RequestOpenExtensions;
+
+        /// <summary>Raised when the user wants to jump into the Diagnostics tab.</summary>
+        public event EventHandler? RequestOpenExtensionDiagnostics;
 
         public SettingsView()
         {
@@ -112,6 +118,14 @@ namespace DIHub.APP.Views
             MultiAIAutomaticDispatchToggle.IsOn = s.MultiAIAutomaticDispatch;
             MultiAIProviderAutomationToggle.IsOn = s.MultiAIAllowProviderAutomation;
 
+            // Extensions
+            ExtensionsEnabledToggle.IsOn = s.ExtensionsEnabled;
+            AllowLocalExtensionsToggle.IsOn = s.AllowLocalExtensions;
+            AllowRemoteExtensionsToggle.IsOn = s.AllowRemoteExtensions;
+            ExtensionConfirmInstallToggle.IsOn = s.ExtensionConfirmInstall;
+            ExtensionShowPermissionWarningsToggle.IsOn = s.ExtensionShowPermissionWarnings;
+            ExtensionSafeModeToggle.IsOn = s.ExtensionSafeMode;
+
             RefreshAccentSelection();
             _loading = false;
         }
@@ -144,14 +158,15 @@ namespace DIHub.APP.Views
             SectionAppearance.Visibility = tag == "appearance" ? Visibility.Visible : Visibility.Collapsed;
             SectionBrowser.Visibility = tag == "browser" ? Visibility.Visible : Visibility.Collapsed;
             SectionMultiAI.Visibility = tag == "multi-ai" ? Visibility.Visible : Visibility.Collapsed;
+            SectionExtensions.Visibility = tag == "extensions" ? Visibility.Visible : Visibility.Collapsed;
             SectionShortcuts.Visibility = tag == "shortcuts" ? Visibility.Visible : Visibility.Collapsed;
             SectionPrivacy.Visibility = tag == "privacy" ? Visibility.Visible : Visibility.Collapsed;
             SectionAbout.Visibility = tag == "about" ? Visibility.Visible : Visibility.Collapsed;
         }
 
         // ─────────────────────────────────────────────
-        //  Shortcuts List
-        // ─────────────────────────────────────────────
+        //  Shortcuts list
+        //  ─────────────────────────────────────────────
 
         private void BuildShortcutsList()
         {
@@ -162,10 +177,7 @@ namespace DIHub.APP.Views
                 var (shortcut, action) = Shortcuts[i];
                 var isLast = i == Shortcuts.Length - 1;
 
-                var row = new Grid
-                {
-                    Padding = new Thickness(16, 10, 16, 10)
-                };
+                var row = new Grid { Padding = new Thickness(16, 10, 16, 10) };
 
                 if (!isLast)
                 {
@@ -176,7 +188,6 @@ namespace DIHub.APP.Views
                 row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(200) });
                 row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
 
-                // Shortcut box
                 var shortcutBorder = new Border
                 {
                     Background = (Brush)Application.Current.Resources["AppSurfaceBrush"],
@@ -187,7 +198,6 @@ namespace DIHub.APP.Views
                     HorizontalAlignment = HorizontalAlignment.Left,
                     VerticalAlignment = VerticalAlignment.Center
                 };
-
                 shortcutBorder.Child = new TextBlock
                 {
                     Text = shortcut,
@@ -199,7 +209,6 @@ namespace DIHub.APP.Views
                 Grid.SetColumn(shortcutBorder, 0);
                 row.Children.Add(shortcutBorder);
 
-                // Action text
                 var actionText = new TextBlock
                 {
                     Text = action,
@@ -208,7 +217,6 @@ namespace DIHub.APP.Views
                     TextWrapping = TextWrapping.Wrap,
                     Foreground = (Brush)Application.Current.Resources["AppTextPrimaryBrush"]
                 };
-
                 Grid.SetColumn(actionText, 1);
                 row.Children.Add(actionText);
 
@@ -245,8 +253,8 @@ namespace DIHub.APP.Views
         }
 
         // ─────────────────────────────────────────────
-        //  Appearance handlers
-        // ─────────────────────────────────────────────
+        //  Appearance
+        //  ─────────────────────────────────────────────
 
         private void OnThemeChanged(object sender, RoutedEventArgs e)
         {
@@ -326,8 +334,8 @@ namespace DIHub.APP.Views
         }
 
         // ─────────────────────────────────────────────
-        //  Browser handlers
-        // ─────────────────────────────────────────────
+        //  Browser
+        //  ─────────────────────────────────────────────
 
         private void OnOpenLinksChanged(object sender, SelectionChangedEventArgs e)
         {
@@ -357,8 +365,8 @@ namespace DIHub.APP.Views
         }
 
         // ─────────────────────────────────────────────
-        //  Multi-AI handlers
-        // ─────────────────────────────────────────────
+        //  Multi-AI
+        //  ─────────────────────────────────────────────
 
         private void OnMultiAIPanelCountChanged(object sender, SelectionChangedEventArgs e)
         {
@@ -407,8 +415,60 @@ namespace DIHub.APP.Views
         }
 
         // ─────────────────────────────────────────────
-        //  About / Links
+        //  Extensions handlers
+        //  ─────────────────────────────────────────────
+
+        private void OnExtensionsEnabledToggled(object sender, RoutedEventArgs e)
+        {
+            if (_loading) return;
+            _settings.Update(s => s.ExtensionsEnabled = ExtensionsEnabledToggle.IsOn);
+        }
+
+        private void OnAllowLocalExtensionsToggled(object sender, RoutedEventArgs e)
+        {
+            if (_loading) return;
+            _settings.Update(s => s.AllowLocalExtensions = AllowLocalExtensionsToggle.IsOn);
+        }
+
+        private void OnAllowRemoteExtensionsToggled(object sender, RoutedEventArgs e)
+        {
+            if (_loading) return;
+            _settings.Update(s => s.AllowRemoteExtensions = AllowRemoteExtensionsToggle.IsOn);
+        }
+
+        private void OnExtensionConfirmInstallToggled(object sender, RoutedEventArgs e)
+        {
+            if (_loading) return;
+            _settings.Update(s => s.ExtensionConfirmInstall = ExtensionConfirmInstallToggle.IsOn);
+        }
+
+        private void OnExtensionShowPermissionWarningsToggled(object sender, RoutedEventArgs e)
+        {
+            if (_loading) return;
+            _settings.Update(s => s.ExtensionShowPermissionWarnings = ExtensionShowPermissionWarningsToggle.IsOn);
+        }
+
+        private void OnExtensionSafeModeToggled(object sender, RoutedEventArgs e)
+        {
+            if (_loading) return;
+            _settings.Update(s => s.ExtensionSafeMode = ExtensionSafeModeToggle.IsOn);
+        }
+
+        private void OnOpenExtensionsClicked(object sender, RoutedEventArgs e)
+        {
+            RequestClose?.Invoke(this, EventArgs.Empty);
+            RequestOpenExtensions?.Invoke(this, EventArgs.Empty);
+        }
+
+        private void OnOpenExtensionDiagnosticsClicked(object sender, RoutedEventArgs e)
+        {
+            RequestClose?.Invoke(this, EventArgs.Empty);
+            RequestOpenExtensionDiagnostics?.Invoke(this, EventArgs.Empty);
+        }
+
         // ─────────────────────────────────────────────
+        //  About / Links
+        //  ─────────────────────────────────────────────
 
         private void OnOpenLinkClicked(object sender, RoutedEventArgs e)
         {
@@ -418,7 +478,7 @@ namespace DIHub.APP.Views
 
         // ─────────────────────────────────────────────
         //  Privacy
-        // ─────────────────────────────────────────────
+        //  ─────────────────────────────────────────────
 
         private async void OnClearAllDataClicked(object sender, RoutedEventArgs e)
         {
@@ -442,7 +502,7 @@ namespace DIHub.APP.Views
 
         // ─────────────────────────────────────────────
         //  Close
-        // ─────────────────────────────────────────────
+        //  ─────────────────────────────────────────────
 
         private void OnCloseClicked(object sender, RoutedEventArgs e)
             => RequestClose?.Invoke(this, EventArgs.Empty);

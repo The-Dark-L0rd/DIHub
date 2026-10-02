@@ -34,26 +34,68 @@ namespace DIHub.APP
             MainViewContent.Loaded += (s, e) => ApplyTheme();
 
             AppWindow.Closing += OnAppWindowClosing;
+
+            // React to window size / state changes so we can keep the
+            // title bar layout in sync (caption buttons inset).
+            AppWindow.Changed += OnAppWindowChanged;
+
+            // Push the initial right inset after the first layout pass.
+            DispatcherQueue.TryEnqueue(() =>
+            {
+                try
+                {
+                    MainViewContent.SetTitleBarRightInset(AppWindow.TitleBar.RightInset);
+                }
+                catch { }
+            });
         }
 
         private void OnTitleBarReady(object? sender, FrameworkElement titleBar)
         {
             ExtendsContentIntoTitleBar = true;
             SetTitleBar(titleBar);
+
+            // After extending into the title bar, re-query the right inset.
+            DispatcherQueue.TryEnqueue(() =>
+            {
+                try
+                {
+                    MainViewContent.SetTitleBarRightInset(AppWindow.TitleBar.RightInset);
+                }
+                catch { }
+            });
         }
 
         private void OnThemeChanged(object? sender, System.EventArgs e)
             => DispatcherQueue.TryEnqueue(ApplyTheme);
 
         // ─────────────────────────────────────────────
-        //  Icon
+        //  Window size / state changes
+        //  ─────────────────────────────────────────────
+
+        private void OnAppWindowChanged(AppWindow sender, AppWindowChangedEventArgs args)
+        {
+            if (!args.DidSizeChange && !args.DidPresenterChange && !args.DidPositionChange)
+                return;
+
+            DispatcherQueue.TryEnqueue(() =>
+            {
+                try
+                {
+                    MainViewContent.SetTitleBarRightInset(sender.TitleBar.RightInset);
+                }
+                catch { }
+            });
+        }
+
         // ─────────────────────────────────────────────
+        //  Icon
+        //  ─────────────────────────────────────────────
 
         private void SetWindowIcon()
         {
             try
             {
-                // Path to the icon — if packaged, use ms-appx; otherwise relative path
                 var iconPath = System.IO.Path.Combine(
                     AppContext.BaseDirectory, "Assets", "DIHub.ico");
 
@@ -63,7 +105,6 @@ namespace DIHub.APP
                 }
                 else
                 {
-                    // Fallback: use ms-appx (for packaged apps)
                     AppWindow.SetIcon("Assets/DIHub.ico");
                 }
             }
@@ -75,7 +116,7 @@ namespace DIHub.APP
 
         // ─────────────────────────────────────────────
         //  Window state
-        // ─────────────────────────────────────────────
+        //  ─────────────────────────────────────────────
 
         private void RestoreWindowState()
         {
@@ -165,7 +206,7 @@ namespace DIHub.APP
 
         // ─────────────────────────────────────────────
         //  Theme
-        // ─────────────────────────────────────────────
+        //  ─────────────────────────────────────────────
 
         private void ApplyTheme()
         {
@@ -199,11 +240,11 @@ namespace DIHub.APP
         private static Color MapAccent(AccentColor accent) => accent switch
         {
             AccentColor.Purple => Color.FromArgb(255, 0x8B, 0x5C, 0xF6),
-            AccentColor.Blue   => Color.FromArgb(255, 0x3B, 0x82, 0xF6),
-            AccentColor.Cyan   => Color.FromArgb(255, 0x06, 0xB6, 0xD4),
-            AccentColor.Green  => Color.FromArgb(255, 0x22, 0xC5, 0x5E),
+            AccentColor.Blue => Color.FromArgb(255, 0x3B, 0x82, 0xF6),
+            AccentColor.Cyan => Color.FromArgb(255, 0x06, 0xB6, 0xD4),
+            AccentColor.Green => Color.FromArgb(255, 0x22, 0xC5, 0x5E),
             AccentColor.Orange => Color.FromArgb(255, 0xF9, 0x73, 0x16),
-            _                  => Color.FromArgb(255, 0x8B, 0x5C, 0xF6)
+            _ => Color.FromArgb(255, 0x8B, 0x5C, 0xF6)
         };
 
         private void UpdateCaptionButtons(ElementTheme requested)

@@ -1,0 +1,90 @@
+<UserControl
+    x:Class="DIHub.APP.Views.ManageScopeDialog"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    mc:Ignorable="d">
+
+    <StackPanel Width="460" Spacing="12">
+
+        <!-- ══ Current state ══ -->
+        <Border Background="{ThemeResource AppSecondaryBrush}"
+                BorderBrush="{ThemeResource AppBorderBrush}"
+                BorderThickness="1"
+                CornerRadius="8"
+                Padding="12,10">
+            <StackPanel Spacing="4">
+                <TextBlock x:Name="ExtensionNameText"
+                           Text="Extension"
+                           FontSize="13"
+                           FontWeight="SemiBold"
+                           Foreground="{ThemeResource AppTextPrimaryBrush}" />
+                <TextBlock x:Name="CurrentStateText"
+                           Text="Currently: Disabled"
+                           FontSize="11"
+                           Foreground="{ThemeResource AppTextSecondaryBrush}" />
+            </StackPanel>
+        </Border>
+
+        <!-- ══ Scope selection ══ -->
+        <TextBlock Text="Apply this extension to:"
+                   FontSize="12"
+                   FontWeight="SemiBold"
+                   Margin="0,4,0,0"
+                   Foreground="{ThemeResource AppTextPrimaryBrush}" />
+
+        <!-- Global -->
+        <RadioButton x:Name="RadioGlobal"
+                     Content="Global — all AI accounts"
+                     GroupName="ExtScope"
+                     Checked="OnScopeChanged" />
+
+        <!-- Service -->
+        <RadioButton x:Name="RadioService"
+                     Content="One AI service (all its accounts)"
+                     GroupName="ExtScope"
+                     Checked="OnScopeChanged" />
+        <ComboBox x:Name="ServiceCombo"
+                  Margin="28,-4,0,0"
+                  HorizontalAlignment="Stretch"
+                  IsEnabled="False"
+                  FontSize="12" />
+
+        <!-- Account -->
+        <RadioButton x:Name="RadioAccount"
+                     Content="One specific account"
+                     GroupName="ExtScope"
+                     Checked="OnScopeChanged" />
+        <Grid Margin="28,-4,0,0" ColumnSpacing="6">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="*" />
+            </Grid.ColumnDefinitions>
+            <ComboBox x:Name="AccountServiceCombo"
+                      Grid.Column="0"
+                      HorizontalAlignment="Stretch"
+                      IsEnabled="False"
+                      FontSize="12"
+                      SelectionChanged="OnAccountServiceChanged" />
+            <ComboBox x:Name="AccountCombo"
+                      Grid.Column="1"
+                      HorizontalAlignment="Stretch"
+                      IsEnabled="False"
+                      FontSize="12" />
+        </Grid>
+
+        <!-- ══ Enable/disable ══ -->
+        <CheckBox x:Name="EnableCheck"
+                  Content="Enable at this scope"
+                  IsChecked="True"
+                  Margin="0,6,0,0" />
+
+        <!-- ══ Hint ══ -->
+        <TextBlock Text="Priority: Account overrides Service, which overrides Global."
+                   FontSize="10"
+                   TextWrapping="Wrap"
+                   Margin="0,4,0,0"
+                   Foreground="{ThemeResource AppTextSecondaryBrush}" />
+    </StackPanel>
+</UserControl>

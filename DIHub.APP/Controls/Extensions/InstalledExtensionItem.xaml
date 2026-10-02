@@ -1,0 +1,156 @@
+<UserControl
+    x:Class="DIHub.APP.Controls.Extensions.InstalledExtensionItem"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    mc:Ignorable="d">
+
+    <Border Background="{ThemeResource AppSurfaceBrush}"
+            BorderBrush="{ThemeResource AppBorderBrush}"
+            BorderThickness="1"
+            CornerRadius="10"
+            Padding="12,10">
+        <Grid>
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+
+            <!-- ══ Icon ══ -->
+            <Border Grid.Column="0"
+                    Width="36" Height="36"
+                    CornerRadius="8"
+                    Background="{ThemeResource AppSecondaryBrush}"
+                    VerticalAlignment="Center">
+                <Grid>
+                    <Image x:Name="IconImage"
+                           Width="28" Height="28"
+                           Stretch="Uniform"
+                           Visibility="Collapsed" />
+                    <FontIcon x:Name="IconGlyph"
+                              FontSize="16"
+                              Glyph="&#xE7B8;"
+                              HorizontalAlignment="Center"
+                              VerticalAlignment="Center"
+                              Foreground="{StaticResource AppAccentBrush}" />
+                </Grid>
+            </Border>
+
+            <!-- ══ Name + meta ══ -->
+            <StackPanel Grid.Column="1"
+                        Margin="12,0,12,0"
+                        VerticalAlignment="Center"
+                        Spacing="3">
+                <StackPanel Orientation="Horizontal" Spacing="8">
+                    <TextBlock x:Name="NameText"
+                               Text="Extension"
+                               FontSize="13"
+                               FontWeight="SemiBold"
+                               TextTrimming="CharacterEllipsis"
+                               VerticalAlignment="Center"
+                               Foreground="{ThemeResource AppTextPrimaryBrush}" />
+
+                    <TextBlock x:Name="VersionText"
+                               Text="v0.0.0"
+                               FontSize="10"
+                               VerticalAlignment="Center"
+                               Foreground="{ThemeResource AppTextSecondaryBrush}" />
+                </StackPanel>
+
+                <StackPanel Orientation="Horizontal" Spacing="6">
+                    <!-- Status dot + text -->
+                    <Ellipse x:Name="StatusDot"
+                             Width="6" Height="6"
+                             VerticalAlignment="Center" />
+
+                    <TextBlock x:Name="StatusText"
+                               Text="Enabled"
+                               FontSize="10"
+                               VerticalAlignment="Center"
+                               Foreground="{ThemeResource AppTextSecondaryBrush}" />
+
+                    <!-- Scope badge -->
+                    <Border x:Name="ScopeBadge"
+                            Background="{ThemeResource AppSecondaryBrush}"
+                            BorderBrush="{ThemeResource AppBorderBrush}"
+                            BorderThickness="1"
+                            CornerRadius="4"
+                            Padding="6,1">
+                        <TextBlock x:Name="ScopeText"
+                                   Text="Global"
+                                   FontSize="9"
+                                   Foreground="{ThemeResource AppTextSecondaryBrush}" />
+                    </Border>
+
+                    <!-- Source badge -->
+                    <Border x:Name="SourceBadge"
+                            Background="{ThemeResource AppSecondaryBrush}"
+                            BorderBrush="{ThemeResource AppBorderBrush}"
+                            BorderThickness="1"
+                            CornerRadius="4"
+                            Padding="6,1"
+                            Visibility="Collapsed">
+                        <TextBlock x:Name="SourceText"
+                                   Text="Local"
+                                   FontSize="9"
+                                   Foreground="{ThemeResource AppTextSecondaryBrush}" />
+                    </Border>
+                </StackPanel>
+            </StackPanel>
+
+            <!-- ══ Actions ══ -->
+            <StackPanel Grid.Column="2"
+                        Orientation="Horizontal"
+                        Spacing="4"
+                        VerticalAlignment="Center">
+
+                <Button x:Name="ToggleButton"
+                        Height="30"
+                        Padding="10,0"
+                        Background="{ThemeResource AppSecondaryBrush}"
+                        BorderBrush="{ThemeResource AppBorderBrush}"
+                        BorderThickness="1"
+                        CornerRadius="6"
+                        Click="OnToggleClicked"
+                        ToolTipService.ToolTip="Enable / Disable">
+                    <TextBlock x:Name="ToggleText"
+                               Text="Disable"
+                               FontSize="11" />
+                </Button>
+
+                <Button x:Name="MoreButton"
+                        Width="30" Height="30"
+                        Padding="0"
+                        Background="Transparent"
+                        BorderThickness="0">
+                    <FontIcon Glyph="&#xE712;" FontSize="11" />
+                    <Button.Flyout>
+                        <MenuFlyout Placement="BottomEdgeAlignedRight">
+                            <MenuFlyoutItem Text="Manage Scope..."
+                                            Click="OnManageScopeClicked">
+                                <MenuFlyoutItem.Icon>
+                                    <FontIcon Glyph="&#xE8B7;" />
+                                </MenuFlyoutItem.Icon>
+                            </MenuFlyoutItem>
+                            <MenuFlyoutItem Text="Details..."
+                                            Click="OnDetailsClicked">
+                                <MenuFlyoutItem.Icon>
+                                    <FontIcon Glyph="&#xE946;" />
+                                </MenuFlyoutItem.Icon>
+                            </MenuFlyoutItem>
+                            <MenuFlyoutSeparator />
+                            <MenuFlyoutItem Text="Remove"
+                                            Click="OnRemoveClicked">
+                                <MenuFlyoutItem.Icon>
+                                    <FontIcon Glyph="&#xE74D;" />
+                                </MenuFlyoutItem.Icon>
+                            </MenuFlyoutItem>
+                        </MenuFlyout>
+                    </Button.Flyout>
+                </Button>
+            </StackPanel>
+        </Grid>
+    </Border>
+</UserControl>

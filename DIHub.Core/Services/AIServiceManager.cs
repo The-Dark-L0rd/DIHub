@@ -151,7 +151,6 @@ namespace DIHub.Core.Services
             var orderedList = orderedIds.ToList();
             var reordered = new List<AIService>(orderedList.Count);
 
-            // Build the new list in the exact sequence provided by the UI.
             foreach (var id in orderedList)
             {
                 var svc = _services.FirstOrDefault(s => s.Id == id);
@@ -159,14 +158,12 @@ namespace DIHub.Core.Services
                     reordered.Add(svc);
             }
 
-            // Append any leftover services (defensive)
             foreach (var svc in _services)
             {
                 if (!reordered.Contains(svc))
                     reordered.Add(svc);
             }
 
-            // Update Order sequentially
             for (int i = 0; i < reordered.Count; i++)
             {
                 reordered[i].Order = i;
@@ -175,9 +172,7 @@ namespace DIHub.Core.Services
             _services.Clear();
             _services.AddRange(reordered);
 
-            // ══ Deliberately NO Sort() and NO ServicesChanged ══
-            // The UI already reordered its ObservableCollection via Move().
-            // Firing the event would clear + rebuild → flicker.
+            // Deliberately NO Sort() and NO ServicesChanged.
             _ = SaveAsync();
         }
 
@@ -209,18 +204,19 @@ namespace DIHub.Core.Services
         {
             var list = new List<AIService>
             {
-                new() { Name = "ChatGPT",           Url = "https://chatgpt.com/",              Icon = "\uE8F2", Accent = AccentColor.Purple, Order = 0 },
-                new() { Name = "Gemini",            Url = "https://gemini.google.com/",        Icon = "\uE99A", Accent = AccentColor.Blue,   Order = 1 },
-                new() { Name = "Claude",            Url = "https://claude.ai/",                Icon = "\uE8A5", Accent = AccentColor.Orange, Order = 2 },
-                new() { Name = "Perplexity",        Url = "https://www.perplexity.ai/",        Icon = "\uE721", Accent = AccentColor.Cyan,   Order = 3 },
-                new() { Name = "Grok",              Url = "https://grok.com/",                 Icon = "\uE8F2", Accent = AccentColor.Blue,   Order = 4 },
-                new() { Name = "DeepSeek",          Url = "https://chat.deepseek.com/",        Icon = "\uE99A", Accent = AccentColor.Purple, Order = 5 },
-                new() { Name = "Copilot",           Url = "https://copilot.microsoft.com/",    Icon = "\uE774", Accent = AccentColor.Green,  Order = 6 },
-                new() { Name = "Poe",               Url = "https://poe.com/",                  Icon = "\uE8F2", Accent = AccentColor.Purple, Order = 7 },
-                new() { Name = "Mistral",           Url = "https://chat.mistral.ai/",          Icon = "\uE945", Accent = AccentColor.Orange, Order = 8 },
-                new() { Name = "OpenRouter",        Url = "https://openrouter.ai/chat",        Icon = "\uE774", Accent = AccentColor.Cyan,   Order = 9 },
-                new() { Name = "Google AI Studio",  Url = "https://aistudio.google.com/",      Icon = "\uE99A", Accent = AccentColor.Blue,   Order = 10 },
-                new() { Name = "Groq",              Url = "https://groq.com/",                 Icon = "\uE945", Accent = AccentColor.Green,  Order = 11 },
+                new() { Name = "ChatGPT",          Url = "https://chatgpt.com/",           Icon = "\uE8F2", Accent = AccentColor.Purple, Order = 0 },
+                new() { Name = "Gemini",           Url = "https://gemini.google.com/",     Icon = "\uE99A", Accent = AccentColor.Blue,   Order = 1 },
+                new() { Name = "Claude",           Url = "https://claude.ai/",             Icon = "\uE8A5", Accent = AccentColor.Orange, Order = 2 },
+                new() { Name = "Perplexity",       Url = "https://www.perplexity.ai/",     Icon = "\uE721", Accent = AccentColor.Cyan,   Order = 3 },
+                new() { Name = "Grok",             Url = "https://grok.com/",              Icon = "\uE8F2", Accent = AccentColor.Blue,   Order = 4 },
+                new() { Name = "DeepSeek",         Url = "https://chat.deepseek.com/",     Icon = "\uE99A", Accent = AccentColor.Purple, Order = 5 },
+                new() { Name = "Copilot",          Url = "https://copilot.microsoft.com/", Icon = "\uE774", Accent = AccentColor.Green,  Order = 6 },
+                new() { Name = "Poe",              Url = "https://poe.com/",               Icon = "\uE8F2", Accent = AccentColor.Purple, Order = 7 },
+                new() { Name = "Mistral",          Url = "https://chat.mistral.ai/",       Icon = "\uE945", Accent = AccentColor.Orange, Order = 8 },
+                new() { Name = "OpenRouter",       Url = "https://openrouter.ai/chat",     Icon = "\uE774", Accent = AccentColor.Cyan,   Order = 9 },
+                new() { Name = "Google AI Studio", Url = "https://aistudio.google.com/",   Icon = "\uE99A", Accent = AccentColor.Blue,   Order = 10 },
+                new() { Name = "Groq",             Url = "https://groq.com/",              Icon = "\uE945", Accent = AccentColor.Green,  Order = 11 },
+                new() { Name = "Qwen",             Url = "https://chat.qwen.ai/",          Icon = "\uE99A", Accent = AccentColor.Purple, Order = 12 },
             };
 
             foreach (var svc in list)

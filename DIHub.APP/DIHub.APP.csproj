@@ -67,7 +67,49 @@
 
   <ItemGroup>
     <Content Include="Assets\**\*.png" />
+    <None Remove="Controls\Extensions\ExtensionCard.xaml" />
+    <None Remove="Controls\Extensions\ExtensionDiagnosticsPanel.xaml" />
+    <None Remove="Controls\Extensions\ExtensionPermissionList.xaml" />
+    <None Remove="Controls\Extensions\InstalledExtensionItem.xaml" />
+    <None Remove="Views\ExtensionsView.xaml" />
+    <None Remove="Views\ManageScopeDialog.xaml" />
     <Content Include="Assets\DIHub.ico" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Page Update="Controls\Extensions\ExtensionDiagnosticsPanel.xaml">
+      <Generator>MSBuild:Compile</Generator>
+    </Page>
+  </ItemGroup>
+
+  <ItemGroup>
+    <Page Update="Views\ManageScopeDialog.xaml">
+      <Generator>MSBuild:Compile</Generator>
+    </Page>
+  </ItemGroup>
+
+  <ItemGroup>
+    <Page Update="Views\ExtensionsView.xaml">
+      <Generator>MSBuild:Compile</Generator>
+    </Page>
+  </ItemGroup>
+
+  <ItemGroup>
+    <Page Update="Controls\Extensions\ExtensionPermissionList.xaml">
+      <Generator>MSBuild:Compile</Generator>
+    </Page>
+  </ItemGroup>
+
+  <ItemGroup>
+    <Page Update="Controls\Extensions\InstalledExtensionItem.xaml">
+      <Generator>MSBuild:Compile</Generator>
+    </Page>
+  </ItemGroup>
+
+  <ItemGroup>
+    <Page Update="Controls\Extensions\ExtensionCard.xaml">
+      <Generator>MSBuild:Compile</Generator>
+    </Page>
   </ItemGroup>
 
 </Project>

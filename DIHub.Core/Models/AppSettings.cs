@@ -30,29 +30,38 @@ namespace DIHub.Core.Models
         public bool MultiAIAutomaticDispatch { get; set; } = true;
         public bool MultiAIAllowProviderAutomation { get; set; } = true;
 
+        // ── Extensions ──
+        /// <summary>
+        /// Enables WebView2's browser extension subsystem.
+        /// Takes effect on the next application start.
+        /// </summary>
+        public bool ExtensionsEnabled { get; set; } = true;
+
+        /// <summary>Allow installing extensions from local folders or ZIPs.</summary>
+        public bool AllowLocalExtensions { get; set; } = true;
+
+        /// <summary>Allow installing extensions from remote HTTPS URLs.</summary>
+        public bool AllowRemoteExtensions { get; set; } = true;
+
+        /// <summary>Show a confirmation dialog before installing.</summary>
+        public bool ExtensionConfirmInstall { get; set; } = true;
+
+        /// <summary>Show a permission breakdown before installing.</summary>
+        public bool ExtensionShowPermissionWarnings { get; set; } = true;
+
+        /// <summary>
+        /// Safe mode: extensions are not auto-applied to any profile.
+        /// Useful for diagnosing a misbehaving extension.
+        /// </summary>
+        public bool ExtensionSafeMode { get; set; } = false;
+
         // ── Window ──
         public WindowStateModel WindowState { get; set; } = new();
 
         // ── Session ──
-        /// <summary>
-        /// URLs of the tabs that were open when the app was last closed.
-        /// Used on startup to restore the previous session.
-        /// </summary>
         public List<string> LastSessionTabUrls { get; set; } = new();
-
-        /// <summary>
-        /// ServiceId of each tab (parallel to LastSessionTabUrls).
-        /// </summary>
         public List<string> LastSessionTabServiceIds { get; set; } = new();
-
-        /// <summary>
-        /// AccountId of each tab (parallel to LastSessionTabUrls).
-        /// </summary>
         public List<string> LastSessionTabAccountIds { get; set; } = new();
-
-        /// <summary>
-        /// Index of the active tab at last shutdown (-1 if none).
-        /// </summary>
         public int LastSessionActiveIndex { get; set; } = -1;
     }
 }

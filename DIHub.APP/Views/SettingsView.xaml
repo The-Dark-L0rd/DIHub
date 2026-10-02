@@ -94,6 +94,12 @@
                                     <TextBlock Text="Multi-AI" />
                                 </StackPanel>
                             </ListViewItem>
+                            <ListViewItem Tag="extensions">
+                                <StackPanel Orientation="Horizontal" Spacing="10">
+                                    <FontIcon Glyph="&#xE8B7;" FontSize="14" />
+                                    <TextBlock Text="Extensions" />
+                                </StackPanel>
+                            </ListViewItem>
                             <ListViewItem Tag="shortcuts">
                                 <StackPanel Orientation="Horizontal" Spacing="10">
                                     <FontIcon Glyph="&#xE765;" FontSize="14" />
@@ -285,6 +291,68 @@
                                           Toggled="OnMultiAIProviderAutomationToggled" />
                         </StackPanel>
 
+                        <!-- EXTENSIONS -->
+                        <StackPanel x:Name="SectionExtensions"
+                                    Spacing="16"
+                                    Visibility="Collapsed">
+                            <TextBlock Text="Extensions" Style="{StaticResource TitleTextStyle}" />
+                            <TextBlock Text="Browser extension platform"
+                                       Style="{StaticResource CaptionTextStyle}"
+                                       Margin="0,-8,0,8" />
+
+                            <Border Background="{ThemeResource AppSecondaryBrush}"
+                                    BorderBrush="{ThemeResource AppBorderBrush}"
+                                    BorderThickness="1"
+                                    CornerRadius="8"
+                                    Padding="14">
+                                <StackPanel Spacing="6">
+                                    <TextBlock Text="⚠ Changes to the master switch take effect after restarting DI Hub."
+                                               FontSize="11"
+                                               TextWrapping="Wrap"
+                                               Foreground="{ThemeResource AppTextSecondaryBrush}" />
+                                </StackPanel>
+                            </Border>
+
+                            <ToggleSwitch x:Name="ExtensionsEnabledToggle"
+                                          Header="Enable browser extensions (restart required)"
+                                          OnContent="On" OffContent="Off"
+                                          Toggled="OnExtensionsEnabledToggled" />
+
+                            <ToggleSwitch x:Name="AllowLocalExtensionsToggle"
+                                          Header="Allow local extensions (folder / ZIP)"
+                                          OnContent="On" OffContent="Off"
+                                          Toggled="OnAllowLocalExtensionsToggled" />
+
+                            <ToggleSwitch x:Name="AllowRemoteExtensionsToggle"
+                                          Header="Allow remote extensions (download URL)"
+                                          OnContent="On" OffContent="Off"
+                                          Toggled="OnAllowRemoteExtensionsToggled" />
+
+                            <ToggleSwitch x:Name="ExtensionConfirmInstallToggle"
+                                          Header="Confirm before installing"
+                                          OnContent="On" OffContent="Off"
+                                          Toggled="OnExtensionConfirmInstallToggled" />
+
+                            <ToggleSwitch x:Name="ExtensionShowPermissionWarningsToggle"
+                                          Header="Show permission warnings"
+                                          OnContent="On" OffContent="Off"
+                                          Toggled="OnExtensionShowPermissionWarningsToggled" />
+
+                            <ToggleSwitch x:Name="ExtensionSafeModeToggle"
+                                          Header="Safe mode — do not apply extensions to any profile"
+                                          OnContent="On" OffContent="Off"
+                                          Toggled="OnExtensionSafeModeToggled" />
+
+                            <Button Content="Open Extensions Manager"
+                                    HorizontalAlignment="Left"
+                                    Margin="0,4,0,0"
+                                    Click="OnOpenExtensionsClicked" />
+
+                            <Button Content="Open Extension Diagnostics"
+                                    HorizontalAlignment="Left"
+                                    Click="OnOpenExtensionDiagnosticsClicked" />
+                        </StackPanel>
+
                         <!-- SHORTCUTS -->
                         <StackPanel x:Name="SectionShortcuts"
                                     Spacing="16"
@@ -300,7 +368,6 @@
                                     CornerRadius="8"
                                     Padding="4">
                                 <StackPanel>
-
                                     <Grid Padding="16,10"
                                           BorderBrush="{ThemeResource AppBorderBrush}"
                                           BorderThickness="0,0,0,1">
@@ -319,9 +386,7 @@
                                                    FontWeight="SemiBold"
                                                    Foreground="{ThemeResource AppTextSecondaryBrush}" />
                                     </Grid>
-
                                     <StackPanel x:Name="ShortcutsList" />
-
                                 </StackPanel>
                             </Border>
 
@@ -366,7 +431,6 @@
                                     Visibility="Collapsed">
                             <TextBlock Text="About" Style="{StaticResource TitleTextStyle}" />
 
-                            <!-- App card -->
                             <Border Background="{ThemeResource AppSecondaryBrush}"
                                     BorderBrush="{ThemeResource AppBorderBrush}"
                                     BorderThickness="1"
@@ -393,15 +457,13 @@
                                         </StackPanel>
                                     </StackPanel>
 
-                                    <Rectangle Height="1"
-                                               Fill="{ThemeResource AppBorderBrush}" />
+                                    <Rectangle Height="1" Fill="{ThemeResource AppBorderBrush}" />
 
                                     <Grid>
                                         <Grid.ColumnDefinitions>
                                             <ColumnDefinition Width="Auto" />
                                             <ColumnDefinition Width="*" />
                                         </Grid.ColumnDefinitions>
-
                                         <TextBlock Grid.Column="0"
                                                    Text="Version"
                                                    FontSize="12"
@@ -418,7 +480,6 @@
                                             <ColumnDefinition Width="Auto" />
                                             <ColumnDefinition Width="*" />
                                         </Grid.ColumnDefinitions>
-
                                         <TextBlock Grid.Column="0"
                                                    Text="Built with"
                                                    FontSize="12"
@@ -431,7 +492,6 @@
                                 </StackPanel>
                             </Border>
 
-                            <!-- Creator card -->
                             <Border Background="{ThemeResource AppSecondaryBrush}"
                                     BorderBrush="{ThemeResource AppBorderBrush}"
                                     BorderThickness="1"
@@ -465,10 +525,8 @@
                                         </StackPanel>
                                     </StackPanel>
 
-                                    <Rectangle Height="1"
-                                               Fill="{ThemeResource AppBorderBrush}" />
+                                    <Rectangle Height="1" Fill="{ThemeResource AppBorderBrush}" />
 
-                                    <!-- GitHub -->
                                     <Button HorizontalAlignment="Stretch"
                                             HorizontalContentAlignment="Left"
                                             Padding="12,10"
@@ -484,14 +542,12 @@
                                                 <ColumnDefinition Width="*" />
                                                 <ColumnDefinition Width="Auto" />
                                             </Grid.ColumnDefinitions>
-
                                             <FontIcon Grid.Column="0"
                                                       Glyph="&#xE774;"
                                                       FontSize="14"
                                                       VerticalAlignment="Center"
                                                       Margin="0,0,12,0"
                                                       Foreground="{StaticResource AppAccentBrush}" />
-
                                             <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="1">
                                                 <TextBlock Text="GitHub"
                                                            FontSize="11"
@@ -500,7 +556,6 @@
                                                            FontSize="13"
                                                            FontWeight="SemiBold" />
                                             </StackPanel>
-
                                             <FontIcon Grid.Column="2"
                                                       Glyph="&#xE8A7;"
                                                       FontSize="11"
@@ -509,7 +564,6 @@
                                         </Grid>
                                     </Button>
 
-                                    <!-- Telegram -->
                                     <Button HorizontalAlignment="Stretch"
                                             HorizontalContentAlignment="Left"
                                             Padding="12,10"
@@ -525,14 +579,12 @@
                                                 <ColumnDefinition Width="*" />
                                                 <ColumnDefinition Width="Auto" />
                                             </Grid.ColumnDefinitions>
-
                                             <FontIcon Grid.Column="0"
                                                       Glyph="&#xE8F2;"
                                                       FontSize="14"
                                                       VerticalAlignment="Center"
                                                       Margin="0,0,12,0"
                                                       Foreground="{StaticResource AppAccentBrush}" />
-
                                             <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="1">
                                                 <TextBlock Text="Telegram"
                                                            FontSize="11"
@@ -541,7 +593,6 @@
                                                            FontSize="13"
                                                            FontWeight="SemiBold" />
                                             </StackPanel>
-
                                             <FontIcon Grid.Column="2"
                                                       Glyph="&#xE8A7;"
                                                       FontSize="11"

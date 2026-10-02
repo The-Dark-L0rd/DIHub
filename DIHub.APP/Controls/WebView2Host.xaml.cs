@@ -5,6 +5,7 @@ using System.Reflection;
 using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
+using DIHub.APP.Services;
 using DIHub.Core.Interfaces;
 using DIHub.Core.Security;
 using Microsoft.UI.Xaml;
@@ -30,6 +31,9 @@ namespace DIHub.APP.Controls
         private CancellationTokenSource? _navCts;
         private string? _profilePath;
 
+        private string? _accountId;
+        private string? _serviceId;
+
         public event EventHandler<string>? NavigationCompleted;
         public event EventHandler<string>? TitleChanged;
         public event EventHandler<NavigationStateChangedEventArgs>? NavigationStateChanged;
@@ -49,8 +53,15 @@ namespace DIHub.APP.Controls
         public void SetProfilePath(string path)
         {
             if (_isInitialized)
-                throw new InvalidOperationException("Cannot set profile path after initialization.");
+                throw new InvalidOperationException(
+                    "Cannot set profile path after initialization.");
             _profilePath = path;
+        }
+
+        public void SetAccountContext(string? accountId, string? serviceId)
+        {
+            _accountId = accountId;
+            _serviceId = serviceId;
         }
 
         private async void OnLoaded(object sender, RoutedEventArgs e)
@@ -85,27 +96,30 @@ namespace DIHub.APP.Controls
 
                 Directory.CreateDirectory(userDataFolder);
 
+                // AreBrowserExtensionsEnabled = true is REQUIRED for the
+                // extension platform. Must be set before any CoreWebView2
+                // is created from this environment.
                 _environment = await CoreWebView2Environment.CreateWithOptionsAsync(
                     browserExecutableFolder: null,
                     userDataFolder: userDataFolder,
                     options: new CoreWebView2EnvironmentOptions
                     {
                         Language = "en-US",
-                        AdditionalBrowserArguments = "--disable-features=msWebOOUI,msPdfOOUI,msSmartScreenProtection"
+                        AdditionalBrowserArguments =
+                            "--disable-features=msWebOOUI,msPdfOOUI,msSmartScreenProtection",
+                        AreBrowserExtensionsEnabled = true
                     });
 
                 await WebView.EnsureCoreWebView2Async(_environment);
 
-                // Runtime best-effort: enable external (Explorer) drop on the
-                // WebView2 surface. The property may not exist in all WinAppSDK
-                // versions, so we use reflection.
                 TryEnableExternalDrop();
-
                 ConfigureWebView();
                 WireEvents();
 
                 _isInitialized = true;
                 RaiseStateChanged(isLoading: false);
+
+                await RegisterProfileWithApplierAsync();
             }
             catch
             {
@@ -114,14 +128,25 @@ namespace DIHub.APP.Controls
             }
         }
 
-        /// <summary>
-        /// Best-effort reflection: set AllowExternalDrop=true so files can be
-        /// dropped directly onto the panel from Explorer. Silently no-ops when
-        /// the property isn't available in the current SDK.
-        /// </summary>
+        private async Task RegisterProfileWithApplierAsync()
+        {
+            if (string.IsNullOrEmpty(_accountId)) return;
+            if (WebView.CoreWebView2 is null) return;
+
+            try
+            {
+                var applier = App.GetService<IExtensionProfileApplier>();
+                applier.RegisterProfile(_accountId, WebView.CoreWebView2.Profile);
+                await applier.ApplyExtensionsToProfileAsync(_accountId);
+            }
+            catch
+            {
+                // Extension failures must never take down the WebView.
+            }
+        }
+
         private void TryEnableExternalDrop()
         {
-            // Try on the WinUI 3 wrapper control.
             try
             {
                 var prop = WebView.GetType().GetProperty(
@@ -131,9 +156,8 @@ namespace DIHub.APP.Controls
                 if (prop is not null && prop.CanWrite && prop.PropertyType == typeof(bool))
                     prop.SetValue(WebView, true);
             }
-            catch { /* best-effort */ }
+            catch { }
 
-            // Some SDK versions expose it on the CoreWebView2 instance instead.
             try
             {
                 if (WebView.CoreWebView2 is not null)
@@ -142,11 +166,12 @@ namespace DIHub.APP.Controls
                         "AllowExternalDrop",
                         BindingFlags.Public | BindingFlags.Instance);
 
-                    if (coreProp is not null && coreProp.CanWrite && coreProp.PropertyType == typeof(bool))
+                    if (coreProp is not null && coreProp.CanWrite &&
+                        coreProp.PropertyType == typeof(bool))
                         coreProp.SetValue(WebView.CoreWebView2, true);
                 }
             }
-            catch { /* best-effort */ }
+            catch { }
         }
 
         private void ConfigureWebView()
@@ -272,15 +297,6 @@ namespace DIHub.APP.Controls
             catch { return "null"; }
         }
 
-        // ─────────────────────────────────────────────
-        //  File attachment via CDP (used by Multi-AI composer)
-        // ─────────────────────────────────────────────
-
-        /// <summary>
-        /// Injects a list of local file paths into the first &lt;input type="file"&gt;
-        /// element on the current page, using Chrome DevTools Protocol.
-        /// Returns true if injection succeeded.
-        /// </summary>
         public async Task<bool> TryAttachFilesAsync(IReadOnlyList<string> filePaths)
         {
             if (_disposed || WebView.CoreWebView2 is null) return false;
@@ -288,7 +304,6 @@ namespace DIHub.APP.Controls
 
             try
             {
-                // 1. Get the document root node id.
                 var docJson = await WebView.CoreWebView2.CallDevToolsProtocolMethodAsync(
                     "DOM.getDocument", "{\"depth\": 0}");
 
@@ -299,7 +314,6 @@ namespace DIHub.APP.Controls
 
                 var rootNodeId = rootIdEl.GetInt32();
 
-                // 2. Find the first file input inside the page.
                 var qsParams = JsonSerializer.Serialize(new
                 {
                     nodeId = rootNodeId,
@@ -316,7 +330,6 @@ namespace DIHub.APP.Controls
                 var inputNodeId = nodeIdEl.GetInt32();
                 if (inputNodeId == 0) return false;
 
-                // 3. Set the files on the input.
                 var setParams = JsonSerializer.Serialize(new
                 {
                     nodeId = inputNodeId,
@@ -326,7 +339,6 @@ namespace DIHub.APP.Controls
                 await WebView.CoreWebView2.CallDevToolsProtocolMethodAsync(
                     "DOM.setFileInputFiles", setParams);
 
-                // 4. Dispatch change + input so the site's listeners fire.
                 await WebView.CoreWebView2.ExecuteScriptAsync(@"
                     (function(){
                         var el = document.querySelector('input[type=file]');
@@ -344,10 +356,6 @@ namespace DIHub.APP.Controls
                 return false;
             }
         }
-
-        // ─────────────────────────────────────────────
-        //  WebView2 events
-        // ─────────────────────────────────────────────
 
         private void OnNavigationStarting(CoreWebView2 sender, CoreWebView2NavigationStartingEventArgs args)
         {
@@ -499,6 +507,16 @@ namespace DIHub.APP.Controls
                 _navCts?.Cancel();
                 _navCts?.Dispose();
                 _navCts = null;
+
+                if (!string.IsNullOrEmpty(_accountId))
+                {
+                    try
+                    {
+                        var applier = App.GetService<IExtensionProfileApplier>();
+                        applier.UnregisterProfile(_accountId);
+                    }
+                    catch { }
+                }
 
                 if (WebView.CoreWebView2 is not null)
                 {

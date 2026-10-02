@@ -37,16 +37,7 @@ namespace DIHub.APP.Views
         private const double SidebarCollapsedWidth = 0;
         private const int SidebarAnimationMs = 200;
 
-        /// <summary>
-        /// Prevents the CollectionChanged handler from re-persisting / re-checking
-        /// when we programmatically revert or move items.
-        /// </summary>
         private bool _suppressReorderPersistence;
-
-        /// <summary>
-        /// The service currently being dragged from the header. Set in
-        /// OnGripDragStarting and consumed by OnServicesDrop.
-        /// </summary>
         private AIService? _draggingService;
 
         public event EventHandler<FrameworkElement>? TitleBarReady;
@@ -73,6 +64,11 @@ namespace DIHub.APP.Views
             _workspaceManager.WorkspacesChanged += (s, e) => DispatcherQueue.TryEnqueue(BuildWorkspaceMenu);
             _workspaceManager.ActiveWorkspaceChanged += OnActiveWorkspaceChanged;
 
+            // Settings → jump-to-extensions shortcuts
+            SettingsOverlay.RequestOpenExtensions += (s, e) => ExtensionsOverlay.Open();
+            SettingsOverlay.RequestOpenExtensionDiagnostics += (s, e) => ExtensionsOverlay.OpenDiagnostics();
+
+            // Address bar: select-all on focus, like a normal browser.
             AddressBar.GotFocus += OnAddressBarGotFocus;
 
             SidebarPanel.Width = ViewModel.IsSidebarExpanded ? SidebarExpandedWidth : SidebarCollapsedWidth;
@@ -89,6 +85,27 @@ namespace DIHub.APP.Views
             TryRestorePreviousSession();
         }
 
+        // ─────────────────────────────────────────────
+        //  Title bar right inset — called by MainWindow
+        //  ─────────────────────────────────────────────
+
+        /// <summary>
+        /// Reserves the correct amount of space for the caption buttons
+        /// (minimize / maximize / close) so the centered search box can
+        /// never overlap them, even when the window is narrow.
+        /// </summary>
+        public void SetTitleBarRightInset(int rightInset)
+        {
+            try
+            {
+                if (rightInset < 0) rightInset = 0;
+                if (rightInset > 400) rightInset = 400;
+
+                TitleBarRightSpacer.Width = rightInset;
+            }
+            catch { }
+        }
+
         private void UpdateSidebarEmptyState()
         {
             var isEmpty = _serviceManager.Services.Count == 0;
@@ -97,7 +114,7 @@ namespace DIHub.APP.Views
 
         // ─────────────────────────────────────────────
         //  Search Box → Command Palette
-        // ─────────────────────────────────────────────
+        //  ─────────────────────────────────────────────
 
         private void OnSearchBoxClicked(object sender, RoutedEventArgs e)
         {
@@ -299,8 +316,8 @@ namespace DIHub.APP.Views
         }
 
         // ─────────────────────────────────────────────
-        //  Favorites (Add / Remove from ⋮ menu)
-        // ─────────────────────────────────────────────
+        //  Favorites
+        //  ─────────────────────────────────────────────
 
         private void OnAddServiceFavoriteClicked(object sender, RoutedEventArgs e)
         {
@@ -352,7 +369,7 @@ namespace DIHub.APP.Views
 
         // ─────────────────────────────────────────────
         //  Session Restore
-        // ─────────────────────────────────────────────
+        //  ─────────────────────────────────────────────
 
         private void TryRestorePreviousSession()
         {
@@ -452,7 +469,7 @@ namespace DIHub.APP.Views
 
         // ─────────────────────────────────────────────
         //  Multi-AI
-        // ─────────────────────────────────────────────
+        //  ─────────────────────────────────────────────
 
         private void OnMultiAIButtonClicked(object sender, RoutedEventArgs e)
         {
@@ -476,8 +493,23 @@ namespace DIHub.APP.Views
         private void OnMultiAIRequestClose(object? sender, EventArgs e) { }
 
         // ─────────────────────────────────────────────
-        //  Add new AI Service
+        //  Extensions
+        //  ─────────────────────────────────────────────
+
+        private void OnExtensionsButtonClicked(object sender, RoutedEventArgs e)
+        {
+            try { ExtensionsOverlay.Open(); }
+            catch (Exception ex)
+            {
+                _notifications.Show("Extensions Error", ex.Message, NotificationSeverity.Error);
+            }
+        }
+
+        private void OnExtensionsRequestClose(object? sender, EventArgs e) { }
+
         // ─────────────────────────────────────────────
+        //  Add new AI Service
+        //  ─────────────────────────────────────────────
 
         private async void OnAddNewServiceClicked(object sender, RoutedEventArgs e)
         {
@@ -514,7 +546,7 @@ namespace DIHub.APP.Views
 
         // ─────────────────────────────────────────────
         //  Service menu handlers
-        // ─────────────────────────────────────────────
+        //  ─────────────────────────────────────────────
 
         private void OnServiceOpenDefaultClicked(object sender, RoutedEventArgs e)
         {
@@ -586,7 +618,7 @@ namespace DIHub.APP.Views
 
         // ─────────────────────────────────────────────
         //  Account actions
-        // ─────────────────────────────────────────────
+        //  ─────────────────────────────────────────────
 
         private void OnAccountClicked(object sender, RoutedEventArgs e)
         {
@@ -751,7 +783,7 @@ namespace DIHub.APP.Views
 
         // ─────────────────────────────────────────────
         //  Open account
-        // ─────────────────────────────────────────────
+        //  ─────────────────────────────────────────────
 
         private void OpenAccount(AIAccount account, bool forceNewTab = false)
         {
@@ -788,10 +820,6 @@ namespace DIHub.APP.Views
             _accountManager.MarkUsed(account.Id);
         }
 
-        /// <summary>
-        /// Opens an arbitrary URL in a new tab (no AI service / account binding).
-        /// Used by the address bar when no tab is active.
-        /// </summary>
         private void OpenUrlInNewTab(string url)
         {
             if (string.IsNullOrWhiteSpace(url)) return;
@@ -811,10 +839,6 @@ namespace DIHub.APP.Views
             ViewModel.ActiveTab = tab;
         }
 
-        /// <summary>
-        /// Opens a brand-new blank tab. The WebView2 stays on about:blank
-        /// until the user types something in the address bar.
-        /// </summary>
         private void OpenBlankTab()
         {
             var tab = new TabItem
@@ -834,7 +858,7 @@ namespace DIHub.APP.Views
 
         // ─────────────────────────────────────────────
         //  Tab lifecycle
-        // ─────────────────────────────────────────────
+        //  ─────────────────────────────────────────────
 
         private void OnTabsCollectionChanged(object? sender, NotifyCollectionChangedEventArgs e)
         {
@@ -853,6 +877,8 @@ namespace DIHub.APP.Views
                         }
                         catch { }
                     }
+
+                    host.SetAccountContext(tab.AccountId, tab.AIServiceId);
 
                     var capturedTab = tab;
 
@@ -875,9 +901,6 @@ namespace DIHub.APP.Views
 
                     ContentHost.Children.Add(host);
                     _webViewHosts[tab.Id] = host;
-
-                    // Blank tabs have no URL → WebView2Host.Navigate() will
-                    // short-circuit and leave the WebView on about:blank.
                     host.Navigate(tab.Url);
                 }
             }
@@ -900,7 +923,7 @@ namespace DIHub.APP.Views
 
         // ─────────────────────────────────────────────
         //  Keyboard shortcuts
-        // ─────────────────────────────────────────────
+        //  ─────────────────────────────────────────────
 
         private void OnFocusAddressBarInvoked(KeyboardAccelerator sender, KeyboardAcceleratorInvokedEventArgs args)
         {
@@ -911,7 +934,6 @@ namespace DIHub.APP.Views
 
         private void OnNewTabInvoked(KeyboardAccelerator sender, KeyboardAcceleratorInvokedEventArgs args)
         {
-            // Ctrl+T now opens a blank tab, like every modern browser.
             args.Handled = true;
             OpenBlankTab();
         }
@@ -971,7 +993,7 @@ namespace DIHub.APP.Views
 
         // ─────────────────────────────────────────────
         //  Workspaces
-        // ─────────────────────────────────────────────
+        //  ─────────────────────────────────────────────
 
         private void BuildWorkspaceMenu()
         {
@@ -1097,7 +1119,7 @@ namespace DIHub.APP.Views
 
         // ─────────────────────────────────────────────
         //  Title Bar buttons
-        // ─────────────────────────────────────────────
+        //  ─────────────────────────────────────────────
 
         private void OnSidebarToggleClicked(object sender, RoutedEventArgs e)
             => ViewModel.ToggleSidebarCommand.Execute(null);
@@ -1108,7 +1130,7 @@ namespace DIHub.APP.Views
 
         // ─────────────────────────────────────────────
         //  Command Palette
-        // ─────────────────────────────────────────────
+        //  ─────────────────────────────────────────────
 
         private void OnCommandPaletteInvoked(KeyboardAccelerator sender, KeyboardAcceleratorInvokedEventArgs args)
         { args.Handled = true; ShowCommandPalette(); }
@@ -1169,6 +1191,69 @@ namespace DIHub.APP.Views
 
             cmds.Add(new CommandItem
             {
+                Title = "Open Extensions",
+                Subtitle = "Discover, install, and manage extensions",
+                Icon = "\uE8B7",
+                CategoryLabel = "Extensions",
+                Category = CommandCategory.Appearance,
+                Keywords = "extensions addons plugins",
+                Execute = () => ExtensionsOverlay.Open()
+            });
+
+            cmds.Add(new CommandItem
+            {
+                Title = "Install Extension from ZIP...",
+                Subtitle = "Open the Extensions panel to install a local package",
+                Icon = "\uE7C3",
+                CategoryLabel = "Extensions",
+                Category = CommandCategory.Appearance,
+                Keywords = "install extension zip local",
+                Execute = () => ExtensionsOverlay.Open()
+            });
+
+            cmds.Add(new CommandItem
+            {
+                Title = "Open Extension Diagnostics",
+                Subtitle = "Environment and installation status",
+                Icon = "\uE9D9",
+                CategoryLabel = "Extensions",
+                Category = CommandCategory.Developer,
+                Keywords = "extensions diagnostics debug inspect webview2",
+                Execute = () => ExtensionsOverlay.OpenDiagnostics()
+            });
+
+            cmds.Add(new CommandItem
+            {
+                Title = "Disable All Extensions (Global)",
+                Subtitle = "Turn off all installed extensions at the global scope",
+                Icon = "\uE8D8",
+                CategoryLabel = "Extensions",
+                Category = CommandCategory.Appearance,
+                Keywords = "extensions disable all off",
+                Execute = async () =>
+                {
+                    try
+                    {
+                        var mgr = App.GetService<IExtensionManager>();
+                        foreach (var ext in mgr.InstalledExtensions.ToList())
+                        {
+                            await mgr.SetAssignmentAsync(
+                                ext.Id,
+                                ExtensionScope.Global,
+                                serviceId: null,
+                                accountId: null,
+                                enabled: false);
+                        }
+                        _notifications.Show("Extensions Disabled",
+                            "All installed extensions have been disabled.",
+                            NotificationSeverity.Information);
+                    }
+                    catch { }
+                }
+            });
+
+            cmds.Add(new CommandItem
+            {
                 Title = "Add AI Service...",
                 Subtitle = "Register a brand new AI service",
                 Icon = "\uE710",
@@ -1197,7 +1282,7 @@ namespace DIHub.APP.Views
             cmds.Add(new CommandItem
             {
                 Title = "Restore Default AI Services",
-                Subtitle = "Reset to the original list of 12 AI services",
+                Subtitle = "Reset to the original list of 13 AI services",
                 Icon = "\uE777",
                 CategoryLabel = "Services",
                 Category = CommandCategory.AIService,
@@ -1209,7 +1294,7 @@ namespace DIHub.APP.Views
                         XamlRoot = RootGrid.XamlRoot,
                         Title = "Restore Default AI Services?",
                         Content = "This will reset the AI services list to the factory defaults: " +
-                                  "7 popular (ChatGPT, Gemini, Claude, Perplexity, Grok, DeepSeek, Copilot) + " +
+                                  "8 popular (ChatGPT, Gemini, Claude, Perplexity, Grok, DeepSeek, Copilot, Qwen) + " +
                                   "5 free / multi-model (Poe, Mistral, OpenRouter, Google AI Studio, Groq).\n\n" +
                                   "Your custom services and their accounts will be removed. " +
                                   "Browser profiles on disk are NOT deleted.",
@@ -1375,7 +1460,7 @@ namespace DIHub.APP.Views
 
         // ─────────────────────────────────────────────
         //  Sidebar animation
-        // ─────────────────────────────────────────────
+        //  ─────────────────────────────────────────────
 
         private void AnimateSidebarTo(double targetWidth)
         {
@@ -1403,7 +1488,7 @@ namespace DIHub.APP.Views
 
         // ─────────────────────────────────────────────
         //  Tab bar
-        // ─────────────────────────────────────────────
+        //  ─────────────────────────────────────────────
 
         private void OnNewBlankTabClicked(object sender, RoutedEventArgs e)
         {
@@ -1437,7 +1522,7 @@ namespace DIHub.APP.Views
 
         // ─────────────────────────────────────────────
         //  Toolbar
-        // ─────────────────────────────────────────────
+        //  ─────────────────────────────────────────────
 
         private void OnBackClicked(object sender, RoutedEventArgs e) => GetActiveHost()?.GoBack();
         private void OnForwardClicked(object sender, RoutedEventArgs e) => GetActiveHost()?.GoForward();
@@ -1451,13 +1536,11 @@ namespace DIHub.APP.Views
 
         private void OnAddressBarGotFocus(object sender, RoutedEventArgs e)
         {
-            // Like Chrome / Edge — clicking the address bar selects the whole URL.
             AddressBar.SelectAll();
         }
 
         private void OnAddressBarKeyDown(object sender, KeyRoutedEventArgs e)
         {
-            // Escape: restore the active tab's URL (like a browser).
             if (e.Key == VirtualKey.Escape)
             {
                 e.Handled = true;
@@ -1476,14 +1559,11 @@ namespace DIHub.APP.Views
             var input = AddressBar.Text;
             if (string.IsNullOrWhiteSpace(input)) return;
 
-            // Normalize: URL → URL, anything else → search engine query.
             var target = _browserService.NormalizeUrlOrSearch(input);
 
             var activeHost = GetActiveHost();
             if (activeHost is null)
             {
-                // No tab is active → behave like a browser:
-                // open the target in a brand-new tab.
                 OpenUrlInNewTab(target);
                 return;
             }
@@ -1493,7 +1573,7 @@ namespace DIHub.APP.Views
 
         // ─────────────────────────────────────────────
         //  ViewModel events
-        // ─────────────────────────────────────────────
+        //  ─────────────────────────────────────────────
 
         private void OnViewModelPropertyChanged(object? sender, PropertyChangedEventArgs e)
         {
@@ -1540,9 +1620,6 @@ namespace DIHub.APP.Views
             var host = GetActiveHost();
             if (host is null)
             {
-                // No active tab — disable navigation buttons, but keep the
-                // address bar usable so the user can search / open a URL,
-                // just like a normal browser.
                 BackButton.IsEnabled = false;
                 ForwardButton.IsEnabled = false;
                 ReloadButton.IsEnabled = false;
@@ -1575,10 +1652,6 @@ namespace DIHub.APP.Views
                 AddressBar.Text = GetDisplayUrl(args.Url);
         }
 
-        /// <summary>
-        /// Hides about:blank / null so the address bar looks empty on a
-        /// freshly created blank tab (matching browser behaviour).
-        /// </summary>
         private static string GetDisplayUrl(string? url)
         {
             if (string.IsNullOrEmpty(url)) return string.Empty;
