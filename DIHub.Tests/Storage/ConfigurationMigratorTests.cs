@@ -28,9 +28,13 @@ namespace DIHub.Tests.Storage
 
             var result = ConfigurationMigrator.Migrate(config);
 
-            Assert.Single(result.Services[0].Accounts);
-            Assert.True(result.Services[0].Accounts[0].IsDefault);
-            Assert.Equal("Default", result.Services[0].Accounts[0].Name);
+            // Note: v7→v8 migration appends Qwen, so the list may contain more
+            // than one service. Find the original one by name.
+            var chatgpt = result.Services.FirstOrDefault(s => s.Name == "ChatGPT");
+            Assert.NotNull(chatgpt);
+            Assert.Single(chatgpt!.Accounts);
+            Assert.True(chatgpt.Accounts[0].IsDefault);
+            Assert.Equal("Default", chatgpt.Accounts[0].Name);
         }
 
         [Fact]
@@ -64,9 +68,14 @@ namespace DIHub.Tests.Storage
 
             var result = ConfigurationMigrator.Migrate(config);
 
-            Assert.Single(result.Services);
-            Assert.Equal("Custom", result.Services[0].Name);
-            Assert.Equal("Personal", result.Services[0].Accounts[0].Name);
+            // Original service is preserved and Qwen is appended by v8 migration.
+            var custom = result.Services.FirstOrDefault(s => s.Name == "Custom");
+            Assert.NotNull(custom);
+            Assert.Equal("https://custom.com", custom!.Url);
+            Assert.Contains(custom.Accounts, a => a.Name == "Personal");
+
+            // Qwen should also be present now.
+            Assert.Contains(result.Services, s => s.Name == "Qwen");
         }
 
         [Fact]
@@ -107,7 +116,62 @@ namespace DIHub.Tests.Storage
 
             var result = ConfigurationMigrator.Migrate(config);
 
-            Assert.False(string.IsNullOrWhiteSpace(result.Services[0].Accounts[0].ProfileId));
+            var x = result.Services.FirstOrDefault(s => s.Name == "X");
+            Assert.NotNull(x);
+            Assert.False(string.IsNullOrWhiteSpace(x!.Accounts[0].ProfileId));
+        }
+
+        // ─────────────────────────────────────────────
+        //  NEW: v7 → v8 specific tests
+        // ─────────────────────────────────────────────
+
+        [Fact]
+        public void Migrate_V7ToV8_AddsQwen()
+        {
+            var config = new AppConfiguration
+            {
+                Version = 7,
+                Services =
+                {
+                    new AIService { Name = "ChatGPT", Url = "https://chatgpt.com/" }
+                }
+            };
+
+            var result = ConfigurationMigrator.Migrate(config);
+
+            Assert.Equal(8, result.Version);
+            Assert.Contains(result.Services, s => s.Name == "Qwen");
+        }
+
+        [Fact]
+        public void Migrate_V7ToV8_DoesNotDuplicateQwen()
+        {
+            var config = new AppConfiguration
+            {
+                Version = 7,
+                Services =
+                {
+                    new AIService { Name = "Qwen", Url = "https://chat.qwen.ai/" }
+                }
+            };
+
+            var result = ConfigurationMigrator.Migrate(config);
+
+            // Should not add a second Qwen.
+            Assert.Single(result.Services.Where(s => s.Name == "Qwen"));
+        }
+
+        [Fact]
+        public void Migrate_V7ToV8_QwenHasDefaultAccount()
+        {
+            var config = new AppConfiguration { Version = 7 };
+
+            var result = ConfigurationMigrator.Migrate(config);
+
+            var qwen = result.Services.FirstOrDefault(s => s.Name == "Qwen");
+            Assert.NotNull(qwen);
+            Assert.Single(qwen!.Accounts);
+            Assert.True(qwen.Accounts[0].IsDefault);
         }
     }
 }

@@ -30,7 +30,7 @@
     <AppxAutoIncrementPackageRevision>True</AppxAutoIncrementPackageRevision>
     <GenerateTestArtifacts>False</GenerateTestArtifacts>
     <AppxBundle>Never</AppxBundle>
-    <AppInstallerUri>C:\Users\M.D.S\Desktop\DIHub\Publish\MSIX</AppInstallerUri>
+    <AppInstallerUri>C:\Users\M.D.S\Desktop\DIHub\4.10\Publish\MSIX</AppInstallerUri>
     <HoursBetweenUpdateChecks>0</HoursBetweenUpdateChecks>
     <PackageCertificateThumbprint>C100D61681CBF519DFC4453081D38CA67CC206A1</PackageCertificateThumbprint>
   </PropertyGroup>

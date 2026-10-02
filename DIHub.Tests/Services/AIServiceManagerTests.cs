@@ -24,11 +24,12 @@ namespace DIHub.Tests.Services
 
             await manager.LoadAsync();
 
-            Assert.Equal(12, manager.Services.Count);
+            Assert.Equal(13, manager.Services.Count);
             Assert.Contains(manager.Services, s => s.Name == "ChatGPT");
             Assert.Contains(manager.Services, s => s.Name == "Claude");
             Assert.Contains(manager.Services, s => s.Name == "Poe");
             Assert.Contains(manager.Services, s => s.Name == "Groq");
+            Assert.Contains(manager.Services, s => s.Name == "Qwen");
             Assert.All(manager.Services, s => Assert.Single(s.Accounts));
         }
 
@@ -127,14 +128,15 @@ namespace DIHub.Tests.Services
         }
 
         [Fact]
-        public void ResetToDefaults_SeedsTwelveServices()
+        public void ResetToDefaults_SeedsThirteenServices()
         {
             var (manager, _) = Create();
             manager.AddService(new AIService { Name = "Custom", Url = "https://custom.com" });
 
             manager.ResetToDefaults();
 
-            Assert.Equal(12, manager.Services.Count);
+            Assert.Equal(13, manager.Services.Count);
+            Assert.Contains(manager.Services, s => s.Name == "Qwen");
             Assert.DoesNotContain(manager.Services, s => s.Name == "Custom");
         }
 

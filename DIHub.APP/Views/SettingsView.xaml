@@ -635,8 +635,9 @@
                                                    FontSize="12"
                                                    Foreground="{ThemeResource AppTextSecondaryBrush}"
                                                    Margin="0,0,20,0" />
-                                        <TextBlock Grid.Column="1"
-                                                   Text="3.12.0"
+                                        <TextBlock x:Name="AboutVersionText"
+                                                   Grid.Column="1"
+                                                   Text="4.10.0"
                                                    FontSize="12"
                                                    FontWeight="SemiBold" />
                                     </Grid>
@@ -769,7 +770,8 @@
                                 </StackPanel>
                             </Border>
 
-                            <TextBlock Text="© 2026 DARK L0RD. All rights reserved."
+                            <TextBlock x:Name="AboutCopyrightText"
+                                       Text="© 2026 DARK L0RD. All rights reserved."
                                        FontSize="11"
                                        HorizontalAlignment="Center"
                                        Foreground="{ThemeResource AppTextSecondaryBrush}"

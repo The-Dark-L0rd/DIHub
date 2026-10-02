@@ -1,6 +1,7 @@
 using System;
 using System.Linq;
 using System.Threading.Tasks;
+using DIHub.Core;
 using DIHub.Core.Interfaces;
 using DIHub.Core.Models;
 using Microsoft.UI.Text;
@@ -61,7 +62,7 @@ namespace DIHub.APP.Controls.Extensions
             catch { }
 
             AddRow(EnvironmentPanel, "WebView2 Runtime", runtimeVersion);
-            AddRow(EnvironmentPanel, "DI Hub Version", "3.12.0");
+            AddRow(EnvironmentPanel, "DI Hub Version", AppInfo.Version);
 
             // Master switch (as stored in settings)
             AddRow(EnvironmentPanel,

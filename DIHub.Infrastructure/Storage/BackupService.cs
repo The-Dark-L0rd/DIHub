@@ -4,6 +4,7 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Threading;
 using System.Threading.Tasks;
+using DIHub.Core;
 using DIHub.Core.Interfaces;
 using DIHub.Core.Models;
 using Microsoft.Extensions.Logging;
@@ -38,7 +39,7 @@ namespace DIHub.Infrastructure.Storage
 
         // ─────────────────────────────────────────────
         //  Export
-        // ─────────────────────────────────────────────
+        //  ─────────────────────────────────────────────
 
         public async Task ExportAsync(
             string destinationPath,
@@ -55,7 +56,7 @@ namespace DIHub.Infrastructure.Storage
             var backup = new BackupFile
             {
                 CreatedAt = DateTime.UtcNow,
-                AppVersion = "3.12.0"
+                AppVersion = AppInfo.Version
             };
 
             if (includeServices)
@@ -142,7 +143,7 @@ namespace DIHub.Infrastructure.Storage
 
         // ─────────────────────────────────────────────
         //  Read
-        // ─────────────────────────────────────────────
+        //  ─────────────────────────────────────────────
 
         public async Task<BackupFile?> ReadAsync(string sourcePath, CancellationToken ct = default)
         {
@@ -164,7 +165,7 @@ namespace DIHub.Infrastructure.Storage
 
         // ─────────────────────────────────────────────
         //  Apply
-        // ─────────────────────────────────────────────
+        //  ─────────────────────────────────────────────
 
         public async Task ApplyAsync(BackupFile backup, CancellationToken ct = default)
         {

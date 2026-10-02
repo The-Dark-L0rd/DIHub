@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
+using DIHub.Core;
 using DIHub.Core.Interfaces;
 using DIHub.Core.Models;
 using Microsoft.UI;
@@ -81,6 +82,11 @@ namespace DIHub.APP.Views
             LoadFromSettings();
             NavList.SelectedIndex = 0;
             ShowSection("general");
+
+            // Version info from central AppInfo (reads assembly version).
+            AboutVersionText.Text = AppInfo.Version;
+            AboutCopyrightText.Text = AppInfo.Copyright;
+
             Visibility = Visibility.Visible;
         }
 
@@ -91,7 +97,7 @@ namespace DIHub.APP.Views
 
         // ─────────────────────────────────────────────
         //  Load
-        // ─────────────────────────────────────────────
+        //  ─────────────────────────────────────────────
 
         private void LoadFromSettings()
         {
