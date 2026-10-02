@@ -9,8 +9,17 @@
     mc:Ignorable="d"
     Visibility="Collapsed">
 
-    <Grid Background="#80000000" Tapped="OnBackdropTapped">
-        <Grid Background="{ThemeResource AppBackgroundBrush}"
+    <!-- Backdrop + auto-sized modal -->
+    <Grid x:Name="BackdropGrid"
+          Background="#80000000"
+          SizeChanged="OnBackdropSizeChanged"
+          Tapped="OnBackdropTapped">
+
+        <!-- Modal panel: size is driven from code-behind so it never
+             exceeds the window bounds (prevents overlap with the
+             window caption buttons). -->
+        <Grid x:Name="ModalPanel"
+              Background="{ThemeResource AppBackgroundBrush}"
               Width="1100" Height="720"
               HorizontalAlignment="Center"
               VerticalAlignment="Center"
@@ -293,7 +302,6 @@
                 <!-- DIAGNOSTICS -->
                 <controls:ExtensionDiagnosticsPanel x:Name="ContentDiagnostics"
                                                     Visibility="Collapsed" />
-
             </Grid>
         </Grid>
 

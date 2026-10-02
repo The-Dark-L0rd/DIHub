@@ -1,4 +1,5 @@
 using System;
+using System.Runtime.InteropServices;
 using DIHub.APP.Views;
 using DIHub.Core.Interfaces;
 using DIHub.Core.Models;
@@ -16,6 +17,15 @@ namespace DIHub.APP
         private readonly ISettingsService _settings;
         private bool _isClosing;
 
+        // Absolute minimum window size. Below this the title bar cannot
+        // fit its icons + caption buttons without overlap.
+        private const int MinWindowWidth = 520;
+        private const int MinWindowHeight = 400;
+
+        // Win32 subclassing for WM_GETMINMAXINFO (enforces minimum size).
+        private IntPtr _hwnd;
+        private SUBCLASSPROC? _subclassProc;
+
         public MainWindow()
         {
             InitializeComponent();
@@ -30,24 +40,99 @@ namespace DIHub.APP
             SetWindowIcon();
             RestoreWindowState();
 
+            // Install the WM_GETMINMAXINFO hook so the OS enforces our
+            // minimum size. Must run after the window handle exists.
+            DispatcherQueue.TryEnqueue(InstallMinSizeHook);
+
             MainViewContent.TitleBarReady += OnTitleBarReady;
-            MainViewContent.Loaded += (s, e) => ApplyTheme();
+            MainViewContent.Loaded += OnMainViewLoaded;
+            MainViewContent.SizeChanged += (s, e) => UpdateTitleBarInset();
 
             AppWindow.Closing += OnAppWindowClosing;
+        }
 
-            // React to window size / state changes so we can keep the
-            // title bar layout in sync (caption buttons inset).
-            AppWindow.Changed += OnAppWindowChanged;
+        // ─────────────────────────────────────────────
+        //  Minimum window size via Win32
+        //  ─────────────────────────────────────────────
 
-            // Push the initial right inset after the first layout pass.
-            DispatcherQueue.TryEnqueue(() =>
+        private delegate IntPtr SUBCLASSPROC(
+            IntPtr hWnd, uint uMsg, IntPtr wParam, IntPtr lParam,
+            IntPtr uIdSubclass, IntPtr dwRefData);
+
+        [DllImport("comctl32.dll", SetLastError = true)]
+        private static extern bool SetWindowSubclass(
+            IntPtr hWnd, SUBCLASSPROC pfnSubclass, IntPtr uIdSubclass, IntPtr dwRefData);
+
+        [DllImport("comctl32.dll", SetLastError = true)]
+        private static extern IntPtr DefSubclassProc(
+            IntPtr hWnd, uint uMsg, IntPtr wParam, IntPtr lParam);
+
+        [DllImport("user32.dll")]
+        private static extern uint GetDpiForWindow(IntPtr hWnd);
+
+        [StructLayout(LayoutKind.Sequential)]
+        private struct POINT
+        {
+            public int X;
+            public int Y;
+        }
+
+        [StructLayout(LayoutKind.Sequential)]
+        private struct MINMAXINFO
+        {
+            public POINT ptReserved;
+            public POINT ptMaxSize;
+            public POINT ptMaxPosition;
+            public POINT ptMinTrackSize;
+            public POINT ptMaxTrackSize;
+        }
+
+        private const uint WM_GETMINMAXINFO = 0x0024;
+
+        private void InstallMinSizeHook()
+        {
+            try
             {
-                try
+                _hwnd = WinRT.Interop.WindowNative.GetWindowHandle(this);
+                if (_hwnd == IntPtr.Zero) return;
+
+                _subclassProc = MinSizeSubclassProc;
+                SetWindowSubclass(_hwnd, _subclassProc, IntPtr.Zero, IntPtr.Zero);
+            }
+            catch { }
+        }
+
+        private IntPtr MinSizeSubclassProc(
+            IntPtr hWnd, uint uMsg, IntPtr wParam, IntPtr lParam,
+            IntPtr uIdSubclass, IntPtr dwRefData)
+        {
+            try
+            {
+                if (uMsg == WM_GETMINMAXINFO)
                 {
-                    MainViewContent.SetTitleBarRightInset(AppWindow.TitleBar.RightInset);
+                    var dpi = GetDpiForWindow(hWnd);
+                    var scale = dpi == 0 ? 1.0 : dpi / 96.0;
+
+                    var mmi = Marshal.PtrToStructure<MINMAXINFO>(lParam);
+                    mmi.ptMinTrackSize.X = (int)(MinWindowWidth * scale);
+                    mmi.ptMinTrackSize.Y = (int)(MinWindowHeight * scale);
+                    Marshal.StructureToPtr(mmi, lParam, fDeleteOld: false);
+                    return IntPtr.Zero;
                 }
-                catch { }
-            });
+            }
+            catch { }
+
+            return DefSubclassProc(hWnd, uMsg, wParam, lParam);
+        }
+
+        // ─────────────────────────────────────────────
+        //  Title bar inset
+        //  ─────────────────────────────────────────────
+
+        private void OnMainViewLoaded(object sender, RoutedEventArgs e)
+        {
+            ApplyTheme();
+            UpdateTitleBarInset();
         }
 
         private void OnTitleBarReady(object? sender, FrameworkElement titleBar)
@@ -55,38 +140,26 @@ namespace DIHub.APP
             ExtendsContentIntoTitleBar = true;
             SetTitleBar(titleBar);
 
-            // After extending into the title bar, re-query the right inset.
-            DispatcherQueue.TryEnqueue(() =>
-            {
-                try
-                {
-                    MainViewContent.SetTitleBarRightInset(AppWindow.TitleBar.RightInset);
-                }
-                catch { }
-            });
+            DispatcherQueue.TryEnqueue(UpdateTitleBarInset);
         }
 
-        private void OnThemeChanged(object? sender, System.EventArgs e)
-            => DispatcherQueue.TryEnqueue(ApplyTheme);
-
-        // ─────────────────────────────────────────────
-        //  Window size / state changes
-        //  ─────────────────────────────────────────────
-
-        private void OnAppWindowChanged(AppWindow sender, AppWindowChangedEventArgs args)
+        private void UpdateTitleBarInset()
         {
-            if (!args.DidSizeChange && !args.DidPresenterChange && !args.DidPositionChange)
-                return;
-
-            DispatcherQueue.TryEnqueue(() =>
+            try
             {
-                try
-                {
-                    MainViewContent.SetTitleBarRightInset(sender.TitleBar.RightInset);
-                }
-                catch { }
-            });
+                var inset = AppWindow.TitleBar.RightInset;
+
+                // Fallback: some environments report 0 until the caption
+                // buttons have been fully laid out.
+                if (inset <= 0) inset = 138;
+
+                MainViewContent.SetTitleBarRightInset(inset);
+            }
+            catch { }
         }
+
+        private void OnThemeChanged(object? sender, EventArgs e)
+            => DispatcherQueue.TryEnqueue(ApplyTheme);
 
         // ─────────────────────────────────────────────
         //  Icon
@@ -108,10 +181,7 @@ namespace DIHub.APP
                     AppWindow.SetIcon("Assets/DIHub.ico");
                 }
             }
-            catch
-            {
-                // Icon is best-effort — don't crash if it fails
-            }
+            catch { }
         }
 
         // ─────────────────────────────────────────────
@@ -126,6 +196,9 @@ namespace DIHub.APP
 
                 var width = state.Width > 400 ? state.Width : 1400;
                 var height = state.Height > 300 ? state.Height : 900;
+
+                if (width < MinWindowWidth) width = MinWindowWidth;
+                if (height < MinWindowHeight) height = MinWindowHeight;
 
                 if (state.HasValidPosition && IsPositionOnAnyMonitor(state.X, state.Y, width, height))
                 {

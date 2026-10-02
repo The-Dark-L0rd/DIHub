@@ -8,6 +8,7 @@ using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Media;
 using System;
+using System.Collections.Generic;
 using System.Collections.Specialized;
 using System.Linq;
 using System.Threading;
@@ -26,6 +27,12 @@ namespace DIHub.APP.Views
         private string _activeTab = "discover";
         private CancellationTokenSource? _progressCts;
 
+        private const double ModalMaxWidth = 1100;
+        private const double ModalMaxHeight = 720;
+        private const double ModalMinWidth = 520;
+        private const double ModalMinHeight = 400;
+        private const double ModalOuterMargin = 40;
+
         public event EventHandler? RequestClose;
 
         public ExtensionsView()
@@ -39,6 +46,28 @@ namespace DIHub.APP.Views
             ViewModel.InstalledItems.CollectionChanged += OnInstalledChanged;
 
             UpdateTabVisuals();
+        }
+
+        // ─────────────────────────────────────────────
+        //  Backdrop size → modal size
+        //  ─────────────────────────────────────────────
+
+        private void OnBackdropSizeChanged(object sender, SizeChangedEventArgs e)
+        {
+            try
+            {
+                if (ModalPanel is null) return;
+
+                var availWidth = e.NewSize.Width - ModalOuterMargin;
+                var availHeight = e.NewSize.Height - ModalOuterMargin;
+
+                var w = Math.Min(ModalMaxWidth, Math.Max(ModalMinWidth, availWidth));
+                var h = Math.Min(ModalMaxHeight, Math.Max(ModalMinHeight, availHeight));
+
+                ModalPanel.Width = w;
+                ModalPanel.Height = h;
+            }
+            catch { }
         }
 
         // ─────────────────────────────────────────────
@@ -63,7 +92,6 @@ namespace DIHub.APP.Views
             Focus(FocusState.Programmatic);
         }
 
-        /// <summary>Opens the Extensions view directly on the Diagnostics tab.</summary>
         public async void OpenDiagnostics()
         {
             Visibility = Visibility.Visible;
@@ -123,7 +151,6 @@ namespace DIHub.APP.Views
             ContentUpdates.Visibility = tag == "updates" ? Visibility.Visible : Visibility.Collapsed;
             ContentDiagnostics.Visibility = tag == "diagnostics" ? Visibility.Visible : Visibility.Collapsed;
 
-            // Refresh diagnostics when its tab is shown.
             if (tag == "diagnostics")
                 ContentDiagnostics.Refresh();
 
@@ -487,6 +514,11 @@ namespace DIHub.APP.Views
         {
             if (item is null) return;
 
+            // Safety net: if already installed, skip.
+            var already = ViewModel.InstalledItems
+                .Any(i => string.Equals(i.Info.Name, item.Name, StringComparison.OrdinalIgnoreCase));
+            if (already) return;
+
             if (!string.IsNullOrWhiteSpace(item.DownloadUrl))
             {
                 await HandleOneClickInstallAsync(item);
@@ -712,16 +744,14 @@ namespace DIHub.APP.Views
             }
         }
 
-        /// <summary>
-        /// If the effective state comes from a non-Global scope, opening
-        /// Manage Scope is the correct action (a Global toggle would have
-        /// no visible effect).
-        /// </summary>
         private async Task HandleToggleAsync(ExtensionInfo ext, bool enable)
         {
             var item = ViewModel.InstalledItems
                 .FirstOrDefault(i => i.Info.Id == ext.Id);
 
+            // If the effective state comes from a non-Global scope,
+            // opening Manage Scope is the correct action (a Global
+            // toggle would have no visible effect).
             if (item is not null &&
                 (item.State.Source == ExtensionScope.Account ||
                  item.State.Source == ExtensionScope.Service))
@@ -752,33 +782,37 @@ namespace DIHub.APP.Views
             if (result != ContentDialogResult.Primary) return;
 
             var selection = panel.GetSelection();
-            if (selection is null)
+            if (selection is null || selection.IsEmpty)
             {
                 await ShowMessageAsync(
-                    "Invalid selection",
-                    "Please select a valid scope and target before applying.");
+                    "No targets selected",
+                    "Please select Global or at least one service or account before applying.");
                 return;
             }
 
-            await ViewModel.SetScopeAsync(
-                ext.Id,
-                selection.Scope,
-                selection.ServiceId,
-                selection.AccountId,
-                selection.Enabled);
+            var assignments = panel.BuildAssignments(ext.Id, selection);
 
-            await ShowMessageAsync(
-                "Scope updated",
-                $"Assignment saved at the {DescribeScope(selection.Scope)} scope.");
+            await ViewModel.ReplaceAssignmentsAsync(ext.Id, assignments);
+
+            // Summary of what was applied.
+            string summary;
+            if (selection.IsGlobal)
+            {
+                summary = "Applied globally to all AI accounts.";
+            }
+            else
+            {
+                var parts = new List<string>();
+                if (selection.ServiceIds.Count > 0)
+                    parts.Add($"{selection.ServiceIds.Count} service(s)");
+                if (selection.Accounts.Count > 0)
+                    parts.Add($"{selection.Accounts.Count} account(s)");
+
+                summary = $"Applied to {string.Join(" and ", parts)}.";
+            }
+
+            await ShowMessageAsync("Scope updated", summary);
         }
-
-        private static string DescribeScope(ExtensionScope scope) => scope switch
-        {
-            ExtensionScope.Global => "Global",
-            ExtensionScope.Service => "Service",
-            ExtensionScope.Account => "Account",
-            _ => "Unknown"
-        };
 
         private async Task ConfirmAndRemoveAsync(ExtensionInfo ext)
         {

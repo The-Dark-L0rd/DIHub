@@ -5,9 +5,9 @@
     all package versions live in Directory.Packages.props.
   -->
   <PropertyGroup>
-    <Version>3.12.0</Version>
-    <AssemblyVersion>3.12.0.0</AssemblyVersion>
-    <FileVersion>3.12.0.0</FileVersion>
+    <Version>3.13.0</Version>
+    <AssemblyVersion>3.13.0.0</AssemblyVersion>
+    <FileVersion>3.13.0.0</FileVersion>
 
     <Company>DARK L0RD</Company>
     <Product>DI Hub</Product>

@@ -1,11 +1,18 @@
 using System;
+using System.Collections.Generic;
+using System.IO;
+using System.Linq;
+using System.Threading.Tasks;
 using DIHub.Core.Interfaces;
+using DIHub.Core.Models;
 using Microsoft.UI;
 using Microsoft.UI.Text;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Media;
+using Windows.Storage;
+using Windows.Storage.Pickers;
 using Windows.UI;
 
 namespace DIHub.APP.Views
@@ -144,7 +151,7 @@ namespace DIHub.APP.Views
 
         // ─────────────────────────────────────────────
         //  Navigation
-        // ─────────────────────────────────────────────
+        //  ─────────────────────────────────────────────
 
         private void OnNavSelectionChanged(object sender, SelectionChangedEventArgs e)
         {
@@ -159,8 +166,10 @@ namespace DIHub.APP.Views
             SectionBrowser.Visibility = tag == "browser" ? Visibility.Visible : Visibility.Collapsed;
             SectionMultiAI.Visibility = tag == "multi-ai" ? Visibility.Visible : Visibility.Collapsed;
             SectionExtensions.Visibility = tag == "extensions" ? Visibility.Visible : Visibility.Collapsed;
+            SectionBackup.Visibility = tag == "backup" ? Visibility.Visible : Visibility.Collapsed;
             SectionShortcuts.Visibility = tag == "shortcuts" ? Visibility.Visible : Visibility.Collapsed;
             SectionPrivacy.Visibility = tag == "privacy" ? Visibility.Visible : Visibility.Collapsed;
+            SectionReset.Visibility = tag == "reset" ? Visibility.Visible : Visibility.Collapsed;
             SectionAbout.Visibility = tag == "about" ? Visibility.Visible : Visibility.Collapsed;
         }
 
@@ -226,7 +235,7 @@ namespace DIHub.APP.Views
 
         // ─────────────────────────────────────────────
         //  General handlers
-        // ─────────────────────────────────────────────
+        //  ─────────────────────────────────────────────
 
         private void OnRestoreSessionToggled(object sender, RoutedEventArgs e)
         {
@@ -467,6 +476,386 @@ namespace DIHub.APP.Views
         }
 
         // ─────────────────────────────────────────────
+        //  Backup / Restore
+        //  ─────────────────────────────────────────────
+
+        private async void OnCreateBackupClicked(object sender, RoutedEventArgs e)
+        {
+            var includeServices = BackupServicesCheck.IsChecked == true;
+            var includeExtensions = BackupExtensionsCheck.IsChecked == true;
+            var includeSettings = BackupSettingsCheck.IsChecked == true;
+
+            if (!includeServices && !includeExtensions && !includeSettings)
+            {
+                _notifications.Show("Nothing selected",
+                    "Tick at least one item to include in the backup.",
+                    NotificationSeverity.Information);
+                return;
+            }
+
+            var hwnd = GetWindowHandle();
+            if (hwnd == IntPtr.Zero)
+            {
+                _notifications.Show("Backup Error",
+                    "Cannot open the save dialog.",
+                    NotificationSeverity.Error);
+                return;
+            }
+
+            var picker = new FileSavePicker();
+            picker.SuggestedStartLocation = PickerLocationId.DocumentsLibrary;
+            picker.SuggestedFileName = $"DIHub-Backup-{DateTime.Now:yyyyMMdd-HHmmss}";
+            picker.FileTypeChoices.Add("DI Hub Backup", new List<string> { ".dihub" });
+            picker.FileTypeChoices.Add("JSON", new List<string> { ".json" });
+            WinRT.Interop.InitializeWithWindow.Initialize(picker, hwnd);
+
+            StorageFile file;
+            try { file = await picker.PickSaveFileAsync(); }
+            catch { return; }
+
+            if (file is null) return;
+
+            try
+            {
+                var backup = App.GetService<IBackupService>();
+                await backup.ExportAsync(
+                    file.Path,
+                    includeServices,
+                    includeExtensions,
+                    includeSettings);
+
+                _notifications.Show("Backup Created",
+                    $"Saved to {file.Name}",
+                    NotificationSeverity.Success);
+
+                LastBackupInfoText.Text =
+                    $"Last backup: {DateTime.Now:yyyy-MM-dd HH:mm} → {file.Name}";
+                LastBackupInfoText.Visibility = Visibility.Visible;
+            }
+            catch (Exception ex)
+            {
+                _notifications.Show("Backup Failed",
+                    ex.Message,
+                    NotificationSeverity.Error);
+            }
+        }
+
+        private async void OnRestoreBackupClicked(object sender, RoutedEventArgs e)
+        {
+            var hwnd = GetWindowHandle();
+            if (hwnd == IntPtr.Zero)
+            {
+                _notifications.Show("Restore Error",
+                    "Cannot open the file dialog.",
+                    NotificationSeverity.Error);
+                return;
+            }
+
+            var picker = new FileOpenPicker();
+            picker.SuggestedStartLocation = PickerLocationId.DocumentsLibrary;
+            picker.FileTypeFilter.Add(".dihub");
+            picker.FileTypeFilter.Add(".json");
+            WinRT.Interop.InitializeWithWindow.Initialize(picker, hwnd);
+
+            StorageFile file;
+            try { file = await picker.PickSingleFileAsync(); }
+            catch { return; }
+
+            if (file is null) return;
+
+            var backup = App.GetService<IBackupService>();
+            var parsed = await backup.ReadAsync(file.Path);
+
+            if (parsed is null)
+            {
+                _notifications.Show("Invalid Backup",
+                    "The selected file is not a valid DI Hub backup.",
+                    NotificationSeverity.Error);
+                return;
+            }
+
+            var sections = parsed.IncludedSections.Length > 0
+                ? string.Join(", ", parsed.IncludedSections)
+                : "Unknown";
+
+            var confirm = new ContentDialog
+            {
+                XamlRoot = XamlRoot,
+                Title = "Restore from backup?",
+                Content = new TextBlock
+                {
+                    Text =
+                        $"Backup created: {parsed.CreatedAt:yyyy-MM-dd HH:mm}\n" +
+                        $"App version: {parsed.AppVersion}\n" +
+                        $"Contains: {sections}\n\n" +
+                        "Restoring will overwrite the matching parts of your current configuration.\n\n" +
+                        "DI Hub will restart after restore.",
+                    TextWrapping = TextWrapping.Wrap,
+                    FontSize = 12
+                },
+                PrimaryButtonText = "Restore",
+                CloseButtonText = "Cancel",
+                DefaultButton = ContentDialogButton.Close
+            };
+
+            var result = await confirm.ShowAsync();
+            if (result != ContentDialogResult.Primary) return;
+
+            try
+            {
+                await backup.ApplyAsync(parsed);
+
+                _notifications.Show("Restore Complete",
+                    "Configuration restored. Restarting DI Hub...",
+                    NotificationSeverity.Success);
+
+                await Task.Delay(1200);
+
+                try
+                {
+                    var exePath = Environment.ProcessPath;
+                    if (!string.IsNullOrEmpty(exePath))
+                        System.Diagnostics.Process.Start(exePath);
+                }
+                catch { }
+
+                Environment.Exit(0);
+            }
+            catch (Exception ex)
+            {
+                _notifications.Show("Restore Failed",
+                    ex.Message,
+                    NotificationSeverity.Error);
+            }
+        }
+
+        // ─────────────────────────────────────────────
+        //  Reset
+        //  ─────────────────────────────────────────────
+
+        private async void OnResetSelectedClicked(object sender, RoutedEventArgs e)
+        {
+            var selected = new List<string>();
+            if (ResetAiServicesCheck.IsChecked == true) selected.Add("AI services");
+            if (ResetExtensionsCheck.IsChecked == true) selected.Add("extensions");
+            if (ResetPromptHistoryCheck.IsChecked == true) selected.Add("prompt history");
+            if (ResetSettingsCheck.IsChecked == true) selected.Add("settings");
+            if (ResetWindowCheck.IsChecked == true) selected.Add("window position");
+
+            if (selected.Count == 0)
+            {
+                _notifications.Show("Nothing selected",
+                    "Tick at least one item to reset.",
+                    NotificationSeverity.Information);
+                return;
+            }
+
+            var confirm = new ContentDialog
+            {
+                XamlRoot = XamlRoot,
+                Title = "Reset selected items?",
+                Content = new TextBlock
+                {
+                    Text = "The following will be reset to defaults:\n\n  • " +
+                           string.Join("\n  • ", selected) +
+                           "\n\nThis cannot be undone.",
+                    TextWrapping = TextWrapping.Wrap,
+                    FontSize = 12
+                },
+                PrimaryButtonText = "Reset",
+                CloseButtonText = "Cancel",
+                DefaultButton = ContentDialogButton.Close
+            };
+
+            var result = await confirm.ShowAsync();
+            if (result != ContentDialogResult.Primary) return;
+
+            int done = 0;
+
+            if (ResetAiServicesCheck.IsChecked == true)
+            {
+                try
+                {
+                    var svcMgr = App.GetService<IAIServiceManager>();
+                    svcMgr.ResetToDefaults();
+                    done++;
+                }
+                catch { }
+            }
+
+            if (ResetExtensionsCheck.IsChecked == true)
+            {
+                try
+                {
+                    var extMgr = App.GetService<IExtensionManager>();
+                    foreach (var ext in extMgr.InstalledExtensions.ToList())
+                        await extMgr.RemoveAsync(ext.Id);
+                    done++;
+                }
+                catch { }
+            }
+
+            if (ResetPromptHistoryCheck.IsChecked == true)
+            {
+                try
+                {
+                    var presets = App.GetService<IPresetManager>();
+                    presets.ClearHistory();
+                    done++;
+                }
+                catch { }
+            }
+
+            if (ResetSettingsCheck.IsChecked == true)
+            {
+                try
+                {
+                    _settings.Update(s =>
+                    {
+                        s.RestorePreviousSession = true;
+                        s.StartWithWindows = false;
+                        s.ConfirmOnCloseMultipleTabs = true;
+                        s.RunInBackground = false;
+                        s.Theme = AppTheme.Dark;
+                        s.Accent = AccentColor.Purple;
+                        s.SidebarExpandedByDefault = true;
+                        s.AnimationsEnabled = true;
+                        s.OpenLinks = OpenLinksBehavior.NewTab;
+                        s.ExternalBrowser = ExternalBrowser.Default;
+                        s.SearchEngine = SearchEngine.Google;
+                        s.MultiAIDefaultPanelCount = 2;
+                        s.MultiAIConfirmMultiSend = true;
+                        s.MultiAIKeepTargetsForNext = false;
+                        s.MultiAIRememberLastTargets = true;
+                        s.MultiAIAutoFocusActivePanel = true;
+                        s.MultiAIAutomaticDispatch = true;
+                        s.MultiAIAllowProviderAutomation = true;
+                        s.ExtensionsEnabled = true;
+                        s.AllowLocalExtensions = true;
+                        s.AllowRemoteExtensions = true;
+                        s.ExtensionConfirmInstall = true;
+                        s.ExtensionShowPermissionWarnings = true;
+                        s.ExtensionSafeMode = false;
+                    });
+                    await _settings.SaveAsync();
+                    LoadFromSettings();
+                    done++;
+                }
+                catch { }
+            }
+
+            if (ResetWindowCheck.IsChecked == true)
+            {
+                try
+                {
+                    var win = App.GetMainWindow();
+                    if (win is not null)
+                    {
+                        win.AppWindow.Resize(new Windows.Graphics.SizeInt32(1400, 900));
+                        win.AppWindow.Move(new Windows.Graphics.PointInt32(100, 100));
+                    }
+                    done++;
+                }
+                catch { }
+            }
+
+            _notifications.Show("Reset complete",
+                $"{done} item(s) restored to defaults.",
+                NotificationSeverity.Success);
+        }
+
+        private async void OnResetEverythingClicked(object sender, RoutedEventArgs e)
+        {
+            var confirm = new ContentDialog
+            {
+                XamlRoot = XamlRoot,
+                Title = "⚠ Reset everything?",
+                Content = new TextBlock
+                {
+                    Text = "This will reset:\n\n" +
+                           "  • All AI services (back to 13 factory defaults)\n" +
+                           "  • All extensions (uninstalled)\n" +
+                           "  • All prompt history\n" +
+                           "  • All settings (theme, accent, browser, ...)\n" +
+                           "  • Window position and size\n\n" +
+                           "DI Hub will restart automatically.\n\n" +
+                           "⚠ Your browser profiles and login sessions are NOT deleted — " +
+                           "you will stay signed in to your AI accounts.",
+                    TextWrapping = TextWrapping.Wrap,
+                    FontSize = 12
+                },
+                PrimaryButtonText = "Reset and Restart",
+                CloseButtonText = "Cancel",
+                DefaultButton = ContentDialogButton.Close
+            };
+
+            var result = await confirm.ShowAsync();
+            if (result != ContentDialogResult.Primary) return;
+
+            try { App.GetService<IAIServiceManager>().ResetToDefaults(); } catch { }
+            try { App.GetService<IPresetManager>().ClearHistory(); } catch { }
+
+            try
+            {
+                var extMgr = App.GetService<IExtensionManager>();
+                foreach (var ext in extMgr.InstalledExtensions.ToList())
+                    await extMgr.RemoveAsync(ext.Id);
+            }
+            catch { }
+
+            try
+            {
+                _settings.Update(s =>
+                {
+                    s.RestorePreviousSession = true;
+                    s.StartWithWindows = false;
+                    s.ConfirmOnCloseMultipleTabs = true;
+                    s.RunInBackground = false;
+                    s.Theme = AppTheme.Dark;
+                    s.Accent = AccentColor.Purple;
+                    s.SidebarExpandedByDefault = true;
+                    s.AnimationsEnabled = true;
+                    s.OpenLinks = OpenLinksBehavior.NewTab;
+                    s.ExternalBrowser = ExternalBrowser.Default;
+                    s.SearchEngine = SearchEngine.Google;
+                    s.MultiAIDefaultPanelCount = 2;
+                    s.MultiAIConfirmMultiSend = true;
+                    s.MultiAIKeepTargetsForNext = false;
+                    s.MultiAIRememberLastTargets = true;
+                    s.MultiAIAutoFocusActivePanel = true;
+                    s.MultiAIAutomaticDispatch = true;
+                    s.MultiAIAllowProviderAutomation = true;
+                    s.ExtensionsEnabled = true;
+                    s.AllowLocalExtensions = true;
+                    s.AllowRemoteExtensions = true;
+                    s.ExtensionConfirmInstall = true;
+                    s.ExtensionShowPermissionWarnings = true;
+                    s.ExtensionSafeMode = false;
+                    s.WindowState = new WindowStateModel
+                    {
+                        X = 100,
+                        Y = 100,
+                        Width = 1400,
+                        Height = 900,
+                        IsMaximized = false
+                    };
+                });
+                await _settings.SaveAsync();
+            }
+            catch { }
+
+            try
+            {
+                var exePath = Environment.ProcessPath;
+                if (!string.IsNullOrEmpty(exePath))
+                    System.Diagnostics.Process.Start(exePath);
+            }
+            catch { }
+
+            Environment.Exit(0);
+        }
+
+        // ─────────────────────────────────────────────
         //  About / Links
         //  ─────────────────────────────────────────────
 
@@ -512,6 +901,20 @@ namespace DIHub.APP.Views
 
         private void OnPanelTapped(object sender, TappedRoutedEventArgs e)
             => e.Handled = true;
+
+        private static IntPtr GetWindowHandle()
+        {
+            try
+            {
+                var win = App.GetMainWindow();
+                if (win is null) return IntPtr.Zero;
+                return WinRT.Interop.WindowNative.GetWindowHandle(win);
+            }
+            catch
+            {
+                return IntPtr.Zero;
+            }
+        }
 
         private static Color ParseHex(string hex)
         {

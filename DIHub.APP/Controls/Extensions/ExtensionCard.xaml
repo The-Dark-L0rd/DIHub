@@ -88,17 +88,6 @@
                                    FontSize="9"
                                    Foreground="{ThemeResource AppTextSecondaryBrush}" />
                     </Border>
-
-                    <Border x:Name="InstalledBadge"
-                            Background="{StaticResource AppAccentBrush}"
-                            CornerRadius="4"
-                            Padding="6,2"
-                            Visibility="Collapsed">
-                        <TextBlock Text="Installed"
-                                   FontSize="9"
-                                   Foreground="White"
-                                   FontWeight="SemiBold" />
-                    </Border>
                 </StackPanel>
             </StackPanel>
 
@@ -109,6 +98,7 @@
                     <ColumnDefinition Width="Auto" />
                 </Grid.ColumnDefinitions>
 
+                <!-- Details button -->
                 <Button x:Name="DetailsButton"
                         Grid.Column="0"
                         HorizontalAlignment="Stretch"
@@ -124,16 +114,43 @@
                                FontWeight="SemiBold" />
                 </Button>
 
-                <Button x:Name="InstallButton"
-                        Grid.Column="1"
-                        Margin="6,0,0,0"
-                        Width="34" Height="30"
-                        Padding="0"
-                        Style="{StaticResource AccentButtonStyle}"
-                        Click="OnInstallClicked"
-                        ToolTipService.ToolTip="Install this extension">
-                    <FontIcon Glyph="&#xE710;" FontSize="11" />
-                </Button>
+                <!-- Install button OR Installed indicator (mutually exclusive) -->
+                <Grid Grid.Column="1" Margin="6,0,0,0">
+
+                    <!-- Install button: shown when NOT installed -->
+                    <Button x:Name="InstallButton"
+                            Width="34" Height="30"
+                            Padding="0"
+                            Style="{StaticResource AccentButtonStyle}"
+                            Click="OnInstallClicked"
+                            ToolTipService.ToolTip="Install this extension">
+                        <FontIcon Glyph="&#xE710;" FontSize="11" />
+                    </Button>
+
+                    <!-- Installed indicator: shown when installed -->
+                    <Border x:Name="InstalledIndicator"
+                            Background="{ThemeResource AppSecondaryBrush}"
+                            BorderBrush="{StaticResource AppAccentBrush}"
+                            BorderThickness="1"
+                            CornerRadius="6"
+                            Padding="8,4"
+                            VerticalAlignment="Stretch"
+                            Visibility="Collapsed">
+                        <StackPanel Orientation="Horizontal"
+                                    Spacing="4"
+                                    VerticalAlignment="Center">
+                            <FontIcon Glyph="&#xE73E;"
+                                      FontSize="10"
+                                      VerticalAlignment="Center"
+                                      Foreground="{StaticResource AppAccentBrush}" />
+                            <TextBlock Text="Installed"
+                                       FontSize="10"
+                                       FontWeight="SemiBold"
+                                       VerticalAlignment="Center"
+                                       Foreground="{StaticResource AppAccentBrush}" />
+                        </StackPanel>
+                    </Border>
+                </Grid>
             </Grid>
         </Grid>
     </Border>

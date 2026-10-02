@@ -44,7 +44,7 @@ namespace DIHub.Infrastructure.Extensions
 
         // ─────────────────────────────────────────────
         //  Load
-        // ─────────────────────────────────────────────
+        //  ─────────────────────────────────────────────
 
         public async Task LoadAsync(CancellationToken ct = default)
         {
@@ -67,7 +67,7 @@ namespace DIHub.Infrastructure.Extensions
 
         // ─────────────────────────────────────────────
         //  Query
-        // ─────────────────────────────────────────────
+        //  ─────────────────────────────────────────────
 
         public ExtensionInfo? GetExtension(string extensionId)
             => _extensions.FirstOrDefault(e => e.Id == extensionId);
@@ -78,7 +78,7 @@ namespace DIHub.Infrastructure.Extensions
 
         // ─────────────────────────────────────────────
         //  Install from folder
-        // ─────────────────────────────────────────────
+        //  ─────────────────────────────────────────────
 
         public async Task<ExtensionInstallResult> InstallFromFolderAsync(
             string sourceFolder,
@@ -138,7 +138,7 @@ namespace DIHub.Infrastructure.Extensions
 
         // ─────────────────────────────────────────────
         //  Install from ZIP
-        // ─────────────────────────────────────────────
+        //  ─────────────────────────────────────────────
 
         public async Task<ExtensionInstallResult> InstallFromZipAsync(
             string zipPath, CancellationToken ct = default)
@@ -180,7 +180,7 @@ namespace DIHub.Infrastructure.Extensions
 
         // ─────────────────────────────────────────────
         //  Install from URL (download + SHA-256 + install)
-        // ─────────────────────────────────────────────
+        //  ─────────────────────────────────────────────
 
         public async Task<ExtensionInstallResult> InstallFromUrlAsync(
             string url,
@@ -272,7 +272,7 @@ namespace DIHub.Infrastructure.Extensions
 
         // ─────────────────────────────────────────────
         //  Remove
-        // ─────────────────────────────────────────────
+        //  ─────────────────────────────────────────────
 
         public async Task<bool> RemoveAsync(string extensionId, CancellationToken ct = default)
         {
@@ -309,7 +309,7 @@ namespace DIHub.Infrastructure.Extensions
 
         // ─────────────────────────────────────────────
         //  Assignments
-        // ─────────────────────────────────────────────
+        //  ─────────────────────────────────────────────
 
         public async Task SetAssignmentAsync(
             string extensionId,
@@ -345,8 +345,64 @@ namespace DIHub.Infrastructure.Extensions
         }
 
         // ─────────────────────────────────────────────
-        //  Helpers
+        //  Atomic assignment replacement (multi-select scope)
+        //  ─────────────────────────────────────────────
+
+        public async Task ReplaceAssignmentsAsync(
+            string extensionId,
+            IEnumerable<ExtensionAssignment> newAssignments,
+            CancellationToken ct = default)
+        {
+            if (string.IsNullOrEmpty(extensionId)) return;
+            if (newAssignments is null) newAssignments = Array.Empty<ExtensionAssignment>();
+
+            var cleaned = new List<ExtensionAssignment>();
+            foreach (var a in newAssignments)
+            {
+                // Force the extension id and drop any malformed entries.
+                if (a.Scope != ExtensionScope.Global &&
+                    string.IsNullOrEmpty(a.ServiceId) &&
+                    string.IsNullOrEmpty(a.AccountId))
+                    continue;
+
+                if (a.Scope == ExtensionScope.Service &&
+                    string.IsNullOrEmpty(a.ServiceId))
+                    continue;
+
+                if (a.Scope == ExtensionScope.Account &&
+                    (string.IsNullOrEmpty(a.ServiceId) || string.IsNullOrEmpty(a.AccountId)))
+                    continue;
+
+                cleaned.Add(new ExtensionAssignment
+                {
+                    ExtensionId = extensionId,
+                    Scope = a.Scope,
+                    ServiceId = a.ServiceId,
+                    AccountId = a.AccountId,
+                    IsEnabled = a.IsEnabled,
+                    AssignedAt = a.AssignedAt
+                });
+            }
+
+            await _gate.WaitAsync(ct);
+            try
+            {
+                _assignments.RemoveAll(a => a.ExtensionId == extensionId);
+                _assignments.AddRange(cleaned);
+                await SaveConfigLockedAsync(ct);
+            }
+            finally { _gate.Release(); }
+
+            _logger.LogInformation(
+                "Replaced assignments for {ExtensionId}: {Count} entries.",
+                extensionId, cleaned.Count);
+
+            ExtensionsChanged?.Invoke(this, EventArgs.Empty);
+        }
+
         // ─────────────────────────────────────────────
+        //  Helpers
+        //  ─────────────────────────────────────────────
 
         private async Task SaveConfigLockedAsync(CancellationToken ct)
         {

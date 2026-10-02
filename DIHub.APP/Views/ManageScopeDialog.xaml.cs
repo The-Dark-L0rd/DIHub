@@ -3,18 +3,30 @@ using System.Collections.Generic;
 using System.Linq;
 using DIHub.Core.Interfaces;
 using DIHub.Core.Models;
+using Microsoft.UI.Text;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
+using Microsoft.UI.Xaml.Media;
 
 namespace DIHub.APP.Views
 {
-    /// <summary>Result of the Manage Scope dialog.</summary>
+    /// <summary>
+    /// Result of the Manage Scope dialog. Supports multi-selection:
+    /// Global, or a mix of service-level and account-level targets.
+    /// </summary>
     public sealed class ScopeSelection
     {
-        public ExtensionScope Scope { get; init; }
-        public string? ServiceId { get; init; }
-        public string? AccountId { get; init; }
+        public bool IsGlobal { get; init; }
         public bool Enabled { get; init; }
+
+        /// <summary>ServiceIds the extension should apply to (all their accounts).</summary>
+        public List<string> ServiceIds { get; init; } = new();
+
+        /// <summary>(ServiceId, AccountId) pairs for account-specific targets.</summary>
+        public List<(string ServiceId, string AccountId)> Accounts { get; init; } = new();
+
+        public bool IsEmpty =>
+            !IsGlobal && ServiceIds.Count == 0 && Accounts.Count == 0;
     }
 
     public sealed partial class ManageScopeDialog : UserControl
@@ -32,7 +44,7 @@ namespace DIHub.APP.Views
 
         // ─────────────────────────────────────────────
         //  Load
-        // ─────────────────────────────────────────────
+        //  ─────────────────────────────────────────────
 
         public void Load(ExtensionInfo ext)
         {
@@ -43,112 +55,161 @@ namespace DIHub.APP.Views
 
             ExtensionNameText.Text = ext.Name;
 
-            // Populate service combo (Global scope uses none).
-            ServiceCombo.Items.Clear();
-            ServiceCombo.Items.Add(new ComboBoxItem
-            {
-                Content = "— Select service —",
-                Tag = (string?)null
-            });
-            foreach (var svc in _serviceManager.Services)
-            {
-                ServiceCombo.Items.Add(new ComboBoxItem
-                {
-                    Content = svc.Name,
-                    Tag = svc.Id
-                });
-            }
-            ServiceCombo.SelectedIndex = 0;
-
-            // Populate account-service combo.
-            AccountServiceCombo.Items.Clear();
-            AccountServiceCombo.Items.Add(new ComboBoxItem
-            {
-                Content = "— Service —",
-                Tag = (string?)null
-            });
-            foreach (var svc in _serviceManager.Services)
-            {
-                AccountServiceCombo.Items.Add(new ComboBoxItem
-                {
-                    Content = svc.Name,
-                    Tag = svc.Id
-                });
-            }
-            AccountServiceCombo.SelectedIndex = 0;
-
-            // Account combo starts empty.
-            AccountCombo.Items.Clear();
-            AccountCombo.Items.Add(new ComboBoxItem
-            {
-                Content = "— Account —",
-                Tag = (string?)null
-            });
-            AccountCombo.SelectedIndex = 0;
-
-            // Pre-select the current assignment scope.
+            BuildTargetsLists();
             PreselectCurrentScope(ext);
-
-            // Refresh "currently" text.
             RefreshCurrentStateText(ext);
 
             _loaded = true;
-            UpdateComboStates();
+            UpdatePanelEnabledState();
         }
+
+        // ─────────────────────────────────────────────
+        //  Build checkbox lists
+        //  ─────────────────────────────────────────────
+
+        private void BuildTargetsLists()
+        {
+            ServiceCheckboxList.Children.Clear();
+            AccountCheckboxList.Children.Clear();
+
+            if (_serviceManager is null || _accountManager is null) return;
+
+            int serviceCount = 0;
+            int accountCount = 0;
+
+            foreach (var svc in _serviceManager.Services)
+            {
+                // ── Service-level checkbox ──
+                var serviceCheck = new CheckBox
+                {
+                    Content = svc.Name,
+                    Tag = svc.Id,
+                    FontSize = 12,
+                    Margin = new Thickness(0, 0, 0, 0)
+                };
+                serviceCheck.Checked += OnAnyCheckboxChanged;
+                serviceCheck.Unchecked += OnAnyCheckboxChanged;
+                ServiceCheckboxList.Children.Add(serviceCheck);
+                serviceCount++;
+
+                // ── Account-level checkboxes (grouped under this service) ──
+                var accounts = _accountManager.GetAccountsForService(svc.Id);
+                if (accounts.Count == 0) continue;
+
+                var groupHeader = new TextBlock
+                {
+                    Text = svc.Name,
+                    FontSize = 10,
+                    FontWeight = FontWeights.SemiBold,
+                    Margin = new Thickness(0, 6, 0, 2),
+                    Foreground = (Brush)Application.Current.Resources["AppTextSecondaryBrush"]
+                };
+                AccountCheckboxList.Children.Add(groupHeader);
+
+                foreach (var acc in accounts)
+                {
+                    var accCheck = new CheckBox
+                    {
+                        Content = acc.Name,
+                        Tag = (svc.Id, acc.Id),
+                        FontSize = 11,
+                        Margin = new Thickness(20, 0, 0, 0)
+                    };
+                    accCheck.Checked += OnAnyCheckboxChanged;
+                    accCheck.Unchecked += OnAnyCheckboxChanged;
+                    AccountCheckboxList.Children.Add(accCheck);
+                    accountCount++;
+                }
+            }
+
+            ServicesSection.Visibility = serviceCount > 0
+                ? Visibility.Visible
+                : Visibility.Collapsed;
+
+            AccountsSection.Visibility = accountCount > 0
+                ? Visibility.Visible
+                : Visibility.Collapsed;
+
+            EmptyTargetsText.Visibility = (serviceCount == 0 && accountCount == 0)
+                ? Visibility.Visible
+                : Visibility.Collapsed;
+        }
+
+        // ─────────────────────────────────────────────
+        //  Preselect from existing assignments
+        //  ─────────────────────────────────────────────
 
         private void PreselectCurrentScope(ExtensionInfo ext)
         {
             if (_manager is null) return;
 
-            var assignments = _manager.Assignments
+            var existing = _manager.Assignments
                 .Where(a => a.ExtensionId == ext.Id)
                 .ToList();
 
-            var accAssign = assignments.FirstOrDefault(a => a.Scope == ExtensionScope.Account);
-            var svcAssign = assignments.FirstOrDefault(a => a.Scope == ExtensionScope.Service);
-            var globAssign = assignments.FirstOrDefault(a => a.Scope == ExtensionScope.Global);
-
-            if (accAssign is not null)
-            {
-                RadioAccount.IsChecked = true;
-                EnableCheck.IsChecked = accAssign.IsEnabled;
-
-                // Pre-select service in account scope combos.
-                SelectComboByTag(AccountServiceCombo, accAssign.ServiceId);
-
-                // Populate and select account.
-                if (!string.IsNullOrEmpty(accAssign.ServiceId))
-                    PopulateAccountCombo(accAssign.ServiceId);
-                SelectComboByTag(AccountCombo, accAssign.AccountId);
-                return;
-            }
-
-            if (svcAssign is not null)
-            {
-                RadioService.IsChecked = true;
-                EnableCheck.IsChecked = svcAssign.IsEnabled;
-                SelectComboByTag(ServiceCombo, svcAssign.ServiceId);
-                return;
-            }
-
-            if (globAssign is not null)
+            if (existing.Count == 0)
             {
                 RadioGlobal.IsChecked = true;
-                EnableCheck.IsChecked = globAssign.IsEnabled;
+                EnableCheck.IsChecked = true;
                 return;
             }
 
-            // No assignment yet — default to Global enabled.
-            RadioGlobal.IsChecked = true;
-            EnableCheck.IsChecked = true;
+            var serviceAssignments = existing
+                .Where(a => a.Scope == ExtensionScope.Service)
+                .Select(a => a.ServiceId ?? string.Empty)
+                .Where(id => !string.IsNullOrEmpty(id))
+                .ToHashSet(StringComparer.Ordinal);
+
+            var accountAssignments = existing
+                .Where(a => a.Scope == ExtensionScope.Account)
+                .Select(a => (a.ServiceId ?? string.Empty, a.AccountId ?? string.Empty))
+                .Where(t => !string.IsNullOrEmpty(t.Item1) && !string.IsNullOrEmpty(t.Item2))
+                .ToHashSet();
+
+            var globalAssignment = existing.FirstOrDefault(a => a.Scope == ExtensionScope.Global);
+
+            if (serviceAssignments.Count > 0 || accountAssignments.Count > 0)
+            {
+                RadioSpecific.IsChecked = true;
+
+                foreach (var child in ServiceCheckboxList.Children)
+                {
+                    if (child is CheckBox cb && cb.Tag is string svcId)
+                    {
+                        if (serviceAssignments.Contains(svcId))
+                            cb.IsChecked = true;
+                    }
+                }
+
+                foreach (var child in AccountCheckboxList.Children)
+                {
+                    if (child is CheckBox cb &&
+                        cb.Tag is ValueTuple<string, string> t)
+                    {
+                        if (accountAssignments.Contains((t.Item1, t.Item2)))
+                            cb.IsChecked = true;
+                    }
+                }
+
+                var firstEnabled = existing.FirstOrDefault()?.IsEnabled ?? true;
+                EnableCheck.IsChecked = firstEnabled;
+            }
+            else if (globalAssignment is not null)
+            {
+                RadioGlobal.IsChecked = true;
+                EnableCheck.IsChecked = globalAssignment.IsEnabled;
+            }
+            else
+            {
+                RadioGlobal.IsChecked = true;
+                EnableCheck.IsChecked = true;
+            }
         }
 
         private void RefreshCurrentStateText(ExtensionInfo ext)
         {
             if (_manager is null) return;
 
-            // Best-effort: resolve for the first available account to
-            // show what "effective" means for a real context.
             var anyAccount = _accountManager?.AllAccounts.FirstOrDefault();
             if (anyAccount is null)
             {
@@ -173,97 +234,30 @@ namespace DIHub.APP.Views
         }
 
         // ─────────────────────────────────────────────
-        //  Combo helpers
-        // ─────────────────────────────────────────────
-
-        private static void SelectComboByTag(ComboBox combo, string? tag)
-        {
-            for (int i = 0; i < combo.Items.Count; i++)
-            {
-                if (combo.Items[i] is ComboBoxItem item &&
-                    string.Equals(item.Tag as string, tag, StringComparison.Ordinal))
-                {
-                    combo.SelectedIndex = i;
-                    return;
-                }
-            }
-        }
-
-        private static string? GetComboTag(ComboBox combo)
-        {
-            if (combo.SelectedItem is ComboBoxItem item)
-                return item.Tag as string;
-            return null;
-        }
-
-        // ─────────────────────────────────────────────
         //  Event handlers
-        // ─────────────────────────────────────────────
+        //  ─────────────────────────────────────────────
 
         private void OnScopeChanged(object sender, RoutedEventArgs e)
         {
             if (!_loaded) return;
-            UpdateComboStates();
+            UpdatePanelEnabledState();
         }
 
-        private void UpdateComboStates()
+        private void OnAnyCheckboxChanged(object sender, RoutedEventArgs e)
         {
-            ServiceCombo.IsEnabled = RadioService.IsChecked == true;
-
-            AccountServiceCombo.IsEnabled = RadioAccount.IsChecked == true;
-            AccountCombo.IsEnabled = RadioAccount.IsChecked == true
-                                     && !string.IsNullOrEmpty(GetComboTag(AccountServiceCombo));
+            // No-op; state is read on Apply.
         }
 
-        private void OnAccountServiceChanged(object sender, SelectionChangedEventArgs e)
+        private void UpdatePanelEnabledState()
         {
-            if (!_loaded) return;
-
-            var svcId = GetComboTag(AccountServiceCombo);
-            if (string.IsNullOrEmpty(svcId))
-            {
-                AccountCombo.Items.Clear();
-                AccountCombo.Items.Add(new ComboBoxItem
-                {
-                    Content = "— Account —",
-                    Tag = (string?)null
-                });
-                AccountCombo.SelectedIndex = 0;
-                UpdateComboStates();
-                return;
-            }
-
-            PopulateAccountCombo(svcId);
-            UpdateComboStates();
-        }
-
-        private void PopulateAccountCombo(string serviceId)
-        {
-            if (_accountManager is null) return;
-
-            AccountCombo.Items.Clear();
-            AccountCombo.Items.Add(new ComboBoxItem
-            {
-                Content = "— Account —",
-                Tag = (string?)null
-            });
-
-            var accounts = _accountManager.GetAccountsForService(serviceId);
-            foreach (var acc in accounts)
-            {
-                AccountCombo.Items.Add(new ComboBoxItem
-                {
-                    Content = acc.Name,
-                    Tag = acc.Id
-                });
-            }
-
-            AccountCombo.SelectedIndex = 0;
+            // Border doesn't support IsEnabled in WinUI 3 — use the inner ScrollViewer.
+            if (TargetsScrollViewer is null) return;
+            TargetsScrollViewer.IsEnabled = RadioSpecific.IsChecked == true;
         }
 
         // ─────────────────────────────────────────────
         //  Get result
-        // ─────────────────────────────────────────────
+        //  ─────────────────────────────────────────────
 
         public ScopeSelection? GetSelection()
         {
@@ -273,38 +267,90 @@ namespace DIHub.APP.Views
             {
                 return new ScopeSelection
                 {
-                    Scope = ExtensionScope.Global,
+                    IsGlobal = true,
                     Enabled = enabled
                 };
             }
 
-            if (RadioService.IsChecked == true)
+            var serviceIds = new List<string>();
+            var accounts = new List<(string, string)>();
+
+            foreach (var child in ServiceCheckboxList.Children)
             {
-                var svcId = GetComboTag(ServiceCombo);
-                if (string.IsNullOrEmpty(svcId)) return null;
-                return new ScopeSelection
+                if (child is CheckBox cb &&
+                    cb.IsChecked == true &&
+                    cb.Tag is string svcId)
                 {
+                    serviceIds.Add(svcId);
+                }
+            }
+
+            foreach (var child in AccountCheckboxList.Children)
+            {
+                if (child is CheckBox cb &&
+                    cb.IsChecked == true &&
+                    cb.Tag is ValueTuple<string, string> t)
+                {
+                    accounts.Add((t.Item1, t.Item2));
+                }
+            }
+
+            if (serviceIds.Count == 0 && accounts.Count == 0)
+                return null;
+
+            return new ScopeSelection
+            {
+                IsGlobal = false,
+                Enabled = enabled,
+                ServiceIds = serviceIds,
+                Accounts = accounts
+            };
+        }
+
+        // ─────────────────────────────────────────────
+        //  Build assignments for the caller
+        //  ─────────────────────────────────────────────
+
+        public List<ExtensionAssignment> BuildAssignments(
+            string extensionId, ScopeSelection selection)
+        {
+            var result = new List<ExtensionAssignment>();
+
+            if (selection.IsGlobal)
+            {
+                result.Add(new ExtensionAssignment
+                {
+                    ExtensionId = extensionId,
+                    Scope = ExtensionScope.Global,
+                    IsEnabled = selection.Enabled
+                });
+                return result;
+            }
+
+            foreach (var svcId in selection.ServiceIds)
+            {
+                result.Add(new ExtensionAssignment
+                {
+                    ExtensionId = extensionId,
                     Scope = ExtensionScope.Service,
                     ServiceId = svcId,
-                    Enabled = enabled
-                };
+                    IsEnabled = selection.Enabled
+                });
             }
 
-            if (RadioAccount.IsChecked == true)
+            foreach (var (svcId, accId) in selection.Accounts)
             {
-                var svcId = GetComboTag(AccountServiceCombo);
-                var accId = GetComboTag(AccountCombo);
-                if (string.IsNullOrEmpty(svcId) || string.IsNullOrEmpty(accId)) return null;
-                return new ScopeSelection
+                result.Add(new ExtensionAssignment
                 {
+                    ExtensionId = extensionId,
                     Scope = ExtensionScope.Account,
                     ServiceId = svcId,
                     AccountId = accId,
-                    Enabled = enabled
-                };
+                    IsEnabled = selection.Enabled
+                });
             }
 
-            return null;
+            return result;
         }
     }
 }

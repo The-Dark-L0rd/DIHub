@@ -12,7 +12,7 @@ namespace DIHub.Core.Services
 {
     public sealed class AIServiceManager : IAIServiceManager
     {
-        private const int CurrentConfigVersion = 7;
+        private const int CurrentConfigVersion = 8;
 
         private readonly IConfigurationStorage _storage;
         private readonly ILogger<AIServiceManager> _logger;
@@ -151,6 +151,7 @@ namespace DIHub.Core.Services
             var orderedList = orderedIds.ToList();
             var reordered = new List<AIService>(orderedList.Count);
 
+            // Build the new list in the exact sequence provided by the UI.
             foreach (var id in orderedList)
             {
                 var svc = _services.FirstOrDefault(s => s.Id == id);
@@ -158,12 +159,14 @@ namespace DIHub.Core.Services
                     reordered.Add(svc);
             }
 
+            // Append any leftover services (defensive)
             foreach (var svc in _services)
             {
                 if (!reordered.Contains(svc))
                     reordered.Add(svc);
             }
 
+            // Update Order sequentially
             for (int i = 0; i < reordered.Count; i++)
             {
                 reordered[i].Order = i;
@@ -172,7 +175,9 @@ namespace DIHub.Core.Services
             _services.Clear();
             _services.AddRange(reordered);
 
-            // Deliberately NO Sort() and NO ServicesChanged.
+            // ══ Deliberately NO Sort() and NO ServicesChanged ══
+            // The UI already reordered its ObservableCollection via Move().
+            // Firing the event would clear + rebuild → flicker.
             _ = SaveAsync();
         }
 

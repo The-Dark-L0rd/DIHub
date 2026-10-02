@@ -9,8 +9,6 @@ namespace DIHub.Core.Interfaces
     /// <summary>
     /// Central coordinator for the DI Hub extension platform.
     /// Pure domain — does NOT reference any WebView2 types.
-    /// Actual WebView2 profile application is done by IExtensionProfileApplier
-    /// which lives in the APP layer.
     /// </summary>
     public interface IExtensionManager
     {
@@ -49,6 +47,15 @@ namespace DIHub.Core.Interfaces
             string? serviceId,
             string? accountId,
             bool enabled,
+            CancellationToken ct = default);
+
+        /// <summary>
+        /// Atomically replaces ALL assignments for this extension with the
+        /// given set. Used by the multi-select Manage Scope dialog.
+        /// </summary>
+        Task ReplaceAssignmentsAsync(
+            string extensionId,
+            IEnumerable<ExtensionAssignment> newAssignments,
             CancellationToken ct = default);
 
         ExtensionEffectiveState GetEffectiveState(

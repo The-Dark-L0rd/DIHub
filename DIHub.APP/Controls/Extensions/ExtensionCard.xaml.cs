@@ -1,10 +1,8 @@
+using System;
+using System.Linq;
 using DIHub.Core.Models;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
-using Microsoft.UI.Xaml.Media;
-using Microsoft.UI.Xaml.Media.Imaging;
-using System;
-using System.Linq;
 
 namespace DIHub.APP.Controls.Extensions
 {
@@ -41,27 +39,26 @@ namespace DIHub.APP.Controls.Extensions
         public ExtensionCard()
         {
             InitializeComponent();
+            RefreshInstallUi();
         }
 
         // ─────────────────────────────────────────────
         //  DP callbacks
-        // ─────────────────────────────────────────────
+        //  ─────────────────────────────────────────────
 
         private static void OnItemChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
         {
-            if (d is ExtensionCard card)
-                card.Refresh();
+            if (d is ExtensionCard card) card.Refresh();
         }
 
         private static void OnIsInstalledChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
         {
-            if (d is ExtensionCard card)
-                card.RefreshInstalledBadge();
+            if (d is ExtensionCard card) card.RefreshInstallUi();
         }
 
         // ─────────────────────────────────────────────
         //  Render
-        // ─────────────────────────────────────────────
+        //  ─────────────────────────────────────────────
 
         private void Refresh()
         {
@@ -72,52 +69,40 @@ namespace DIHub.APP.Controls.Extensions
                 VersionText.Text = string.Empty;
                 DescriptionText.Text = string.Empty;
                 CategoryText.Text = string.Empty;
+                CategoryBadge.Visibility = Visibility.Collapsed;
                 return;
             }
 
             NameText.Text = item.Name;
-            VersionText.Text = string.IsNullOrEmpty(item.Version) ? string.Empty : "v" + item.Version;
+            VersionText.Text = string.IsNullOrEmpty(item.Version)
+                ? string.Empty
+                : "v" + item.Version;
             DescriptionText.Text = item.Description ?? string.Empty;
 
             var category = item.Categories?.FirstOrDefault(c => !string.IsNullOrWhiteSpace(c));
             CategoryText.Text = string.IsNullOrEmpty(category) ? "General" : category;
             CategoryBadge.Visibility = Visibility.Visible;
 
-            // Icon: try image, else glyph.
-            var imageSource = BuildIconFromGlyphOrNull(item);
-            if (imageSource is not null)
-            {
-                IconImage.Source = imageSource;
-                IconImage.Visibility = Visibility.Visible;
-                IconGlyph.Visibility = Visibility.Collapsed;
-            }
-            else
-            {
-                IconImage.Visibility = Visibility.Collapsed;
-                IconGlyph.Visibility = Visibility.Visible;
+            // Icon: glyph-based (no remote image in catalog-only entries).
+            var glyph = string.IsNullOrEmpty(item.Glyph) ? "\uE7B8" : item.Glyph!;
+            IconGlyph.Glyph = glyph;
+            IconImage.Visibility = Visibility.Collapsed;
+            IconGlyph.Visibility = Visibility.Visible;
 
-                var glyph = string.IsNullOrEmpty(item.Glyph) ? "\uE7B8" : item.Glyph!;
-                IconGlyph.Glyph = glyph;
-            }
-
-            RefreshInstalledBadge();
+            RefreshInstallUi();
         }
 
-        private void RefreshInstalledBadge()
+        private void RefreshInstallUi()
         {
-            if (InstalledBadge is null) return;
-            InstalledBadge.Visibility = IsInstalled ? Visibility.Visible : Visibility.Collapsed;
-        }
+            if (InstallButton is null || InstalledIndicator is null) return;
 
-        /// <summary>
-        /// Catalog entries only carry a Glyph (no disk icon yet).
-        /// This helper always returns null for now — kept for future use.
-        /// </summary>
-        private static ImageSource? BuildIconFromGlyphOrNull(ExtensionCatalogItem item)
-        {
-            // No icon files exist for catalog-only entries yet.
-            _ = item;
-            return null;
+            InstallButton.Visibility = IsInstalled
+                ? Visibility.Collapsed
+                : Visibility.Visible;
+
+            InstalledIndicator.Visibility = IsInstalled
+                ? Visibility.Visible
+                : Visibility.Collapsed;
         }
 
         // ─────────────────────────────────────────────
@@ -135,6 +120,9 @@ namespace DIHub.APP.Controls.Extensions
 
         private void OnInstallClicked(object sender, RoutedEventArgs e)
         {
+            // Extra safety: never fire install when already installed.
+            if (IsInstalled) return;
+
             ActionRequested?.Invoke(this, new ExtensionActionEventArgs
             {
                 Kind = ExtensionActionKind.Install,

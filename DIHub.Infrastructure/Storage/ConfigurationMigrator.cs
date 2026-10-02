@@ -1,14 +1,15 @@
-﻿using System;
-using System.Collections.ObjectModel;
-using System.Linq;
+﻿using DIHub.Core.Interfaces;
 using DIHub.Core.Models;
 using Microsoft.Extensions.Logging;
+using System;
+using System.Collections.ObjectModel;
+using System.Linq;
 
 namespace DIHub.Infrastructure.Storage
 {
     public static class ConfigurationMigrator
     {
-        public const int CurrentVersion = 7;
+        public const int CurrentVersion = 8;
 
         public static AppConfiguration Migrate(AppConfiguration config, ILogger? logger = null)
         {
@@ -55,11 +56,53 @@ namespace DIHub.Infrastructure.Storage
                 logger?.LogInformation("Migrated config to v7 (window state + session restore).");
             }
 
+            // v7 → v8 : Add Qwen to the default AI services if it is missing.
+            //           We never remove existing services — only append.
+            if (config.Version < 8)
+            {
+                TryAddQwen(config, logger);
+                config.Version = 8;
+                logger?.LogInformation("Migrated config to v8 (Qwen default service).");
+            }
+
             // Defensive: ensure every service has at least one account.
             foreach (var svc in config.Services)
                 EnsureDefaultAccount(svc);
 
             return config;
+        }
+
+        private static void TryAddQwen(AppConfiguration config, ILogger? logger)
+        {
+            // Skip if a Qwen service already exists (either by name or URL).
+            var alreadyPresent = config.Services.Any(s =>
+                string.Equals(s.Name, "Qwen", StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(s.Url, "https://chat.qwen.ai/", StringComparison.OrdinalIgnoreCase));
+
+            if (alreadyPresent) return;
+
+            var qwen = new AIService
+            {
+                Name = "Qwen",
+                Url = "https://chat.qwen.ai/",
+                Icon = "\uE99A",
+                Accent = AccentColor.Purple,
+                Order = config.Services.Count == 0
+                    ? 0
+                    : config.Services.Max(s => s.Order) + 1
+            };
+
+            qwen.Accounts.Add(new AIAccount
+            {
+                ServiceId = qwen.Id,
+                Name = "Default",
+                Icon = qwen.Icon,
+                Accent = qwen.Accent,
+                IsDefault = true
+            });
+
+            config.Services.Add(qwen);
+            logger?.LogInformation("Added Qwen to the AI services list (v8 migration).");
         }
 
         private static void EnsureDefaultAccount(AIService svc)

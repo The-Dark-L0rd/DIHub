@@ -100,6 +100,12 @@
                                     <TextBlock Text="Extensions" />
                                 </StackPanel>
                             </ListViewItem>
+                            <ListViewItem Tag="backup">
+                                <StackPanel Orientation="Horizontal" Spacing="10">
+                                    <FontIcon Glyph="&#xE898;" FontSize="14" />
+                                    <TextBlock Text="Backup" />
+                                </StackPanel>
+                            </ListViewItem>
                             <ListViewItem Tag="shortcuts">
                                 <StackPanel Orientation="Horizontal" Spacing="10">
                                     <FontIcon Glyph="&#xE765;" FontSize="14" />
@@ -110,6 +116,12 @@
                                 <StackPanel Orientation="Horizontal" Spacing="10">
                                     <FontIcon Glyph="&#xE72E;" FontSize="14" />
                                     <TextBlock Text="Privacy" />
+                                </StackPanel>
+                            </ListViewItem>
+                            <ListViewItem Tag="reset">
+                                <StackPanel Orientation="Horizontal" Spacing="10">
+                                    <FontIcon Glyph="&#xE777;" FontSize="14" />
+                                    <TextBlock Text="Reset" />
                                 </StackPanel>
                             </ListViewItem>
                             <ListViewItem Tag="about">
@@ -353,6 +365,78 @@
                                     Click="OnOpenExtensionDiagnosticsClicked" />
                         </StackPanel>
 
+                        <!-- BACKUP -->
+                        <StackPanel x:Name="SectionBackup"
+                                    Spacing="16"
+                                    Visibility="Collapsed">
+                            <TextBlock Text="Backup &amp; Restore" Style="{StaticResource TitleTextStyle}" />
+                            <TextBlock Text="Save or restore parts of your DI Hub configuration"
+                                       Style="{StaticResource CaptionTextStyle}"
+                                       Margin="0,-8,0,8" />
+
+                            <Border Background="{ThemeResource AppSecondaryBrush}"
+                                    BorderBrush="{ThemeResource AppBorderBrush}"
+                                    BorderThickness="1"
+                                    CornerRadius="8"
+                                    Padding="14">
+                                <StackPanel Spacing="6">
+                                    <TextBlock Text="Backups contain configuration only. Browser cookies, sessions, and login credentials are NEVER included."
+                                               FontSize="11"
+                                               TextWrapping="Wrap"
+                                               Foreground="{ThemeResource AppTextSecondaryBrush}" />
+                                </StackPanel>
+                            </Border>
+
+                            <!-- What to include -->
+                            <TextBlock Text="Include in backup:"
+                                       FontSize="12"
+                                       FontWeight="SemiBold" />
+                            <StackPanel Spacing="6">
+                                <CheckBox x:Name="BackupServicesCheck"
+                                          Content="AI services and accounts"
+                                          IsChecked="True" />
+                                <CheckBox x:Name="BackupExtensionsCheck"
+                                          Content="Extensions and their scope assignments"
+                                          IsChecked="True" />
+                                <CheckBox x:Name="BackupSettingsCheck"
+                                          Content="Settings (theme, accent, browser, Multi-AI, Extensions)"
+                                          IsChecked="True" />
+                            </StackPanel>
+
+                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                <Button x:Name="CreateBackupButton"
+                                        Padding="16,8"
+                                        Background="{StaticResource AppAccentBrush}"
+                                        Foreground="White"
+                                        BorderThickness="0"
+                                        CornerRadius="6"
+                                        Click="OnCreateBackupClicked">
+                                    <StackPanel Orientation="Horizontal" Spacing="6">
+                                        <FontIcon Glyph="&#xE898;" FontSize="12" Foreground="White" />
+                                        <TextBlock Text="Create Backup..." FontWeight="SemiBold" Foreground="White" />
+                                    </StackPanel>
+                                </Button>
+
+                                <Button x:Name="RestoreBackupButton"
+                                        Padding="16,8"
+                                        Background="{ThemeResource AppSecondaryBrush}"
+                                        BorderBrush="{ThemeResource AppBorderBrush}"
+                                        BorderThickness="1"
+                                        CornerRadius="6"
+                                        Click="OnRestoreBackupClicked">
+                                    <StackPanel Orientation="Horizontal" Spacing="6">
+                                        <FontIcon Glyph="&#xE8E5;" FontSize="12" />
+                                        <TextBlock Text="Restore from Backup..." />
+                                    </StackPanel>
+                                </Button>
+                            </StackPanel>
+
+                            <TextBlock x:Name="LastBackupInfoText"
+                                       FontSize="11"
+                                       Foreground="{ThemeResource AppTextSecondaryBrush}"
+                                       Visibility="Collapsed" />
+                        </StackPanel>
+
                         <!-- SHORTCUTS -->
                         <StackPanel x:Name="SectionShortcuts"
                                     Spacing="16"
@@ -423,6 +507,88 @@
 
                             <TextBlock Text="No telemetry or tracking is enabled."
                                        Style="{StaticResource CaptionTextStyle}" />
+                        </StackPanel>
+
+                        <!-- RESET -->
+                        <StackPanel x:Name="SectionReset"
+                                    Spacing="16"
+                                    Visibility="Collapsed">
+                            <TextBlock Text="Reset" Style="{StaticResource TitleTextStyle}" />
+                            <TextBlock Text="Restore parts of DI Hub to their factory defaults"
+                                       Style="{StaticResource CaptionTextStyle}"
+                                       Margin="0,-8,0,8" />
+
+                            <Border Background="{ThemeResource AppSecondaryBrush}"
+                                    BorderBrush="{ThemeResource AppBorderBrush}"
+                                    BorderThickness="1"
+                                    CornerRadius="8"
+                                    Padding="14">
+                                <StackPanel Spacing="6">
+                                    <TextBlock Text="⚠ These actions cannot be undone. Only the selected items will be reset."
+                                               FontSize="11"
+                                               TextWrapping="Wrap"
+                                               Foreground="{ThemeResource AppTextSecondaryBrush}" />
+                                </StackPanel>
+                            </Border>
+
+                            <!-- Checkboxes -->
+                            <StackPanel Spacing="8">
+                                <CheckBox x:Name="ResetAiServicesCheck"
+                                          Content="AI services list (restore 13 factory defaults)"
+                                          IsChecked="True" />
+
+                                <CheckBox x:Name="ResetExtensionsCheck"
+                                          Content="Extensions (uninstall all installed extensions)"
+                                          IsChecked="False" />
+
+                                <CheckBox x:Name="ResetPromptHistoryCheck"
+                                          Content="Prompt history (clear all saved prompts)"
+                                          IsChecked="False" />
+
+                                <CheckBox x:Name="ResetSettingsCheck"
+                                          Content="Settings (theme, accent, browser, Multi-AI, Extensions preferences)"
+                                          IsChecked="False" />
+
+                                <CheckBox x:Name="ResetWindowCheck"
+                                          Content="Window position and size"
+                                          IsChecked="False" />
+                            </StackPanel>
+
+                            <Button Content="Reset Selected"
+                                    HorizontalAlignment="Left"
+                                    Padding="16,8"
+                                    Background="{StaticResource AppAccentBrush}"
+                                    Foreground="White"
+                                    BorderThickness="0"
+                                    CornerRadius="6"
+                                    Click="OnResetSelectedClicked" />
+
+                            <!-- Nuclear option -->
+                            <Border Background="{ThemeResource AppSecondaryBrush}"
+                                    BorderBrush="#40F97316"
+                                    BorderThickness="1"
+                                    CornerRadius="8"
+                                    Padding="14"
+                                    Margin="0,8,0,0">
+                                <StackPanel Spacing="10">
+                                    <TextBlock Text="Full Reset"
+                                               FontSize="12"
+                                               FontWeight="SemiBold"
+                                               Foreground="{ThemeResource AppTextPrimaryBrush}" />
+                                    <TextBlock Text="Reset everything: services, extensions, history, settings, and restart DI Hub."
+                                               FontSize="11"
+                                               TextWrapping="Wrap"
+                                               Foreground="{ThemeResource AppTextSecondaryBrush}" />
+                                    <Button Content="⚠ Reset Everything and Restart"
+                                            HorizontalAlignment="Left"
+                                            Padding="14,8"
+                                            Background="#F97316"
+                                            Foreground="White"
+                                            BorderThickness="0"
+                                            CornerRadius="6"
+                                            Click="OnResetEverythingClicked" />
+                                </StackPanel>
+                            </Border>
                         </StackPanel>
 
                         <!-- ABOUT -->

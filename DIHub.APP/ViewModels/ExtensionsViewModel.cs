@@ -14,6 +14,8 @@ namespace DIHub.APP.ViewModels
     public sealed partial class CatalogCardViewModel : ObservableObject
     {
         public ExtensionCatalogItem Item { get; }
+
+        /// <summary>True when the catalog entry has a URL we can download from.</summary>
         public bool HasDownloadUrl => !string.IsNullOrWhiteSpace(Item.DownloadUrl);
 
         [ObservableProperty]
@@ -93,7 +95,7 @@ namespace DIHub.APP.ViewModels
 
         // ─────────────────────────────────────────────
         //  Catalog
-        // ─────────────────────────────────────────────
+        //  ─────────────────────────────────────────────
 
         private async Task LoadCategoriesAsync()
         {
@@ -155,7 +157,7 @@ namespace DIHub.APP.ViewModels
 
         // ─────────────────────────────────────────────
         //  Installed
-        // ─────────────────────────────────────────────
+        //  ─────────────────────────────────────────────
 
         private void RefreshInstalledList()
         {
@@ -187,6 +189,7 @@ namespace DIHub.APP.ViewModels
                 .Where(a => a.ExtensionId == extensionId)
                 .ToList();
 
+            // Account-specific override wins
             var acc = assignments.FirstOrDefault(a => a.Scope == ExtensionScope.Account);
             if (acc is not null)
                 return new ExtensionEffectiveState
@@ -196,6 +199,7 @@ namespace DIHub.APP.ViewModels
                     Source = ExtensionScope.Account
                 };
 
+            // Then service
             var svc = assignments.FirstOrDefault(a => a.Scope == ExtensionScope.Service);
             if (svc is not null)
                 return new ExtensionEffectiveState
@@ -205,6 +209,7 @@ namespace DIHub.APP.ViewModels
                     Source = ExtensionScope.Service
                 };
 
+            // Then global
             var glob = assignments.FirstOrDefault(a => a.Scope == ExtensionScope.Global);
             if (glob is not null)
                 return new ExtensionEffectiveState
@@ -224,7 +229,7 @@ namespace DIHub.APP.ViewModels
 
         // ─────────────────────────────────────────────
         //  Install
-        // ─────────────────────────────────────────────
+        //  ─────────────────────────────────────────────
 
         public Task<ExtensionInstallResult> InstallFromFolderAsync(string folder)
             => _manager.InstallFromFolderAsync(
@@ -244,9 +249,9 @@ namespace DIHub.APP.ViewModels
 
         // ─────────────────────────────────────────────
         //  Scope management
-        // ─────────────────────────────────────────────
+        //  ─────────────────────────────────────────────
 
-        /// <summary>Sets (or replaces) an assignment at the given scope.</summary>
+        /// <summary>Sets (or replaces) a single assignment at the given scope.</summary>
         public async Task SetScopeAsync(
             string extensionId,
             ExtensionScope scope,
@@ -260,8 +265,17 @@ namespace DIHub.APP.ViewModels
                 serviceId,
                 accountId,
                 enabled);
+        }
 
-            // ExtensionsChanged fires, UI refreshes.
+        /// <summary>
+        /// Atomically replaces ALL assignments for this extension.
+        /// Used by the multi-select Manage Scope dialog.
+        /// </summary>
+        public async Task ReplaceAssignmentsAsync(
+            string extensionId,
+            IEnumerable<ExtensionAssignment> assignments)
+        {
+            await _manager.ReplaceAssignmentsAsync(extensionId, assignments);
         }
 
         /// <summary>Convenience: enable/disable at the Global scope.</summary>
@@ -297,7 +311,7 @@ namespace DIHub.APP.ViewModels
 
         // ─────────────────────────────────────────────
         //  Reactive
-        // ─────────────────────────────────────────────
+        //  ─────────────────────────────────────────────
 
         partial void OnSearchTextChanged(string value)
             => _ = ReloadCatalogAsync();

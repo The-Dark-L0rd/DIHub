@@ -6,7 +6,7 @@
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     mc:Ignorable="d">
 
-    <StackPanel Width="460" Spacing="12">
+    <StackPanel Width="500" Spacing="12">
 
         <!-- ══ Current state ══ -->
         <Border Background="{ThemeResource AppSecondaryBrush}"
@@ -34,49 +34,66 @@
                    Margin="0,4,0,0"
                    Foreground="{ThemeResource AppTextPrimaryBrush}" />
 
-        <!-- Global -->
         <RadioButton x:Name="RadioGlobal"
                      Content="Global — all AI accounts"
                      GroupName="ExtScope"
                      Checked="OnScopeChanged" />
 
-        <!-- Service -->
-        <RadioButton x:Name="RadioService"
-                     Content="One AI service (all its accounts)"
+        <RadioButton x:Name="RadioSpecific"
+                     Content="Specific services or accounts"
                      GroupName="ExtScope"
                      Checked="OnScopeChanged" />
-        <ComboBox x:Name="ServiceCombo"
-                  Margin="28,-4,0,0"
-                  HorizontalAlignment="Stretch"
-                  IsEnabled="False"
-                  FontSize="12" />
 
-        <!-- Account -->
-        <RadioButton x:Name="RadioAccount"
-                     Content="One specific account"
-                     GroupName="ExtScope"
-                     Checked="OnScopeChanged" />
-        <Grid Margin="28,-4,0,0" ColumnSpacing="6">
-            <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="*" />
-                <ColumnDefinition Width="*" />
-            </Grid.ColumnDefinitions>
-            <ComboBox x:Name="AccountServiceCombo"
-                      Grid.Column="0"
-                      HorizontalAlignment="Stretch"
-                      IsEnabled="False"
-                      FontSize="12"
-                      SelectionChanged="OnAccountServiceChanged" />
-            <ComboBox x:Name="AccountCombo"
-                      Grid.Column="1"
-                      HorizontalAlignment="Stretch"
-                      IsEnabled="False"
-                      FontSize="12" />
-        </Grid>
+        <!-- ══ Targets list ══ -->
+        <!-- Border has no IsEnabled in WinUI 3 — the inner ScrollViewer
+             carries the disabled state. -->
+        <Border Background="{ThemeResource AppSecondaryBrush}"
+                BorderBrush="{ThemeResource AppBorderBrush}"
+                BorderThickness="1"
+                CornerRadius="8"
+                Padding="12"
+                MaxHeight="280"
+                Margin="28,0,0,0">
+            <ScrollViewer x:Name="TargetsScrollViewer"
+                          IsEnabled="False"
+                          VerticalScrollBarVisibility="Auto"
+                          HorizontalScrollBarVisibility="Disabled">
+                <StackPanel Spacing="12">
+
+                    <!-- Services section -->
+                    <StackPanel x:Name="ServicesSection" Spacing="4">
+                        <TextBlock Text="SERVICES (applies to all their accounts)"
+                                   FontSize="10"
+                                   FontWeight="SemiBold"
+                                   Foreground="{ThemeResource AppTextSecondaryBrush}"
+                                   Margin="0,0,0,4" />
+                        <StackPanel x:Name="ServiceCheckboxList" Spacing="2" />
+                    </StackPanel>
+
+                    <!-- Accounts section -->
+                    <StackPanel x:Name="AccountsSection" Spacing="4">
+                        <TextBlock Text="INDIVIDUAL ACCOUNTS"
+                                   FontSize="10"
+                                   FontWeight="SemiBold"
+                                   Foreground="{ThemeResource AppTextSecondaryBrush}"
+                                   Margin="0,4,0,4" />
+                        <StackPanel x:Name="AccountCheckboxList" Spacing="2" />
+                    </StackPanel>
+
+                    <!-- Empty state -->
+                    <TextBlock x:Name="EmptyTargetsText"
+                               Text="No services or accounts available."
+                               FontSize="11"
+                               Foreground="{ThemeResource AppTextSecondaryBrush}"
+                               TextWrapping="Wrap"
+                               Visibility="Collapsed" />
+                </StackPanel>
+            </ScrollViewer>
+        </Border>
 
         <!-- ══ Enable/disable ══ -->
         <CheckBox x:Name="EnableCheck"
-                  Content="Enable at this scope"
+                  Content="Enable at the selected scope"
                   IsChecked="True"
                   Margin="0,6,0,0" />
 
